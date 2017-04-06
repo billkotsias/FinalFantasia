@@ -1,0 +1,13 @@
+
+skeleton.png
+size: 1024,256
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+goblins
+  rotate: false
+  xy: 2, 2
+  size: 795, 142
+  orig: 795, 142
+  offset: 0, 0
+  index: -1

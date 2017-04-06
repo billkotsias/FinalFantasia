@@ -1,0 +1,134 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="win32">
+      <UniqueIdentifier>{84a8ebd7-7cf0-47f6-b75e-d441df67da40}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="resource">
+      <UniqueIdentifier>{715254bc-d70b-4ec5-bf29-467dd3ace079}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{644b8b4a-fe58-45c5-b601-6e7f47aaab96}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sources">
+      <UniqueIdentifier>{bb6c862e-70e9-49d9-81b7-3829a6f50471}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sources\spineCocos">
+      <UniqueIdentifier>{ab6cacf2-75f6-4487-aa31-d6c0ddf6c1b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\spineCocos">
+      <UniqueIdentifier>{781cc1b0-800b-481a-abfd-50358d496fe2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\psi">
+      <UniqueIdentifier>{8d326dbb-d87a-4687-9898-03648c17bbf0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sources\psi">
+      <UniqueIdentifier>{0db19181-7b62-478b-bd1d-cbe04d391191}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\AppDelegate.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\HelloWorldScene.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>win32</Filter>
+    </ClCompile>
+    <ClCompile Include="Paths.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\AttachmentVertices.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\Cocos2dAttachmentLoader.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\SkeletonAnimation.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\SkeletonRenderer.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\spine-cocos2dx.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\psi\AnimatedPhysics.cpp">
+      <Filter>sources\psi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\psi\SkeletonBody.cpp">
+      <Filter>sources\psi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\SkeletonTwoColorBatch.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\spineCocos\spine\SkeletonBatch.cpp">
+      <Filter>sources\spineCocos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\GLES-Render.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="main.h">
+      <Filter>win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\AppDelegate.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\HelloWorldScene.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\AppDesign.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Paths.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\AttachmentVertices.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\Cocos2dAttachmentLoader.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\SkeletonAnimation.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\SkeletonBatch.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\SkeletonRenderer.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\spine-cocos2dx.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\psi\AnimatedPhysics.h">
+      <Filter>headers\psi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\psi\SkeletonBody.h">
+      <Filter>headers\psi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\spineCocos\spine\SkeletonTwoColorBatch.h">
+      <Filter>headers\spineCocos</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\GLES-Render.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\psi\PsiUtils.h">
+      <Filter>headers\psi</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="game.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>
