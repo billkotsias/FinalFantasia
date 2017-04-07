@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "SkeletonBody.h"
 #include "AnimatedPhysics.h"
+#include "list"
 
 #include "spineCocos\spine\spine-cocos2dx.h"
 
@@ -173,9 +174,12 @@ namespace psi {
 		delete scaledShape;
 	}
 
+	//
+
 	SkeletonBody::SkeletonBody(spSkeletonData* const skeletonData, const b2Vec2& scale, string skinName, const SkeletonBodyPose* const initPose) :
 		skeletonData(skeletonData), renderToBodyScale(scale)
 	{
+		// create and setup skeleton before parsing
 		defaultRenderInstance = spine::SkeletonRenderer::createWithData(skeletonData, false);
 		//defaultRenderInstance->retain(); /// !
 		defaultRenderInstance->setSkin(skinName);
@@ -188,43 +192,60 @@ namespace psi {
 		}
 		spSkeleton_updateWorldTransform(skeleton);
 
+		// create b2BodyDef for each bone (keep bone hierarchy)
+		vector<BodyDefinition*> boneIndexToBodyDefinition;
+		boneIndexToBodyDefinition.resize(skeleton->bonesCount);
+		bodyDefinitions.resize(skeleton->bonesCount);
+
+		unsigned int hierarchicalBoneIndex = 0;
+		list<spBone*> bonesToParse;
+		bonesToParse.push_back(skeleton->root);
+		while (!bonesToParse.empty())
+		{
+			// populate list of bones to parse
+			spBone* const bone = bonesToParse.front();
+			bonesToParse.pop_front();
+			for (int i = bone->childrenCount - 1; i >= 0; --i)
+			{
+				bonesToParse.push_back(bone->children[i]);
+			}
+
+			BodyDefinition* bodyDefinition = &bodyDefinitions.at(hierarchicalBoneIndex);
+
+			int boneIndex = bone->data->index;
+			boneIndexToBodyDefinition[boneIndex] = bodyDefinition;
+
+			b2BodyDef* bodyDef = &bodyDefinition->first;
+			bodyDef->userData = (void*)boneIndex; // register bone's index in skeleton
+			bodyDef->type = b2_dynamicBody; /// <TODO> : kinetic may be desirable in some cases
+			bodyDef->gravityScale = 0;
+			bodyDef->fixedRotation = false;
+			bool isBullet = false; /// <TODO> : use naming convention for <isBullet>
+			bodyDef->bullet = isBullet;
+			//b2BodyDef->position = b2Vec2(position.x, position.y);
+			++hierarchicalBoneIndex;
+		}
+
+		// create b2FixtureDef for each slot/attachment
 		const unsigned int slotsCount = skeleton->slotsCount;
 		spSlot** const slots = skeleton->slots;
 		for (unsigned int i = 0; i < slotsCount; ++i)
 		{
 			spSlot* const slot = slots[i];
-
-			/// <NOTE 1> : we are only interested in slots that have a default attachment in the <setup pose>
+			/// <NOTE 1> : we are only interested in slots that have a default attachment in the <current pose>
 			/// <NOTE 2> : we are only interested in specific attachments
 			spAttachment* _attachment = slot->attachment; // old : GetAttachmentOfSlotIndex(skeletonData, i, slot->attachmentName, skin);
 			if (!_attachment) continue;
 			vector< vector<b2Vec2> > b2Vecs;
 			GetAttachmentVertices(b2Vecs, _attachment, slot, renderToBodyScale);
-			//for (vector<b2Vec2> arr : b2Vecs) {
-			//	for (b2Vec2 vec : arr) {
-			//		CCLOG("Vector= %f,%f", vec.x, vec.y);
-			//	}
-			//}
 			if (b2Vecs.empty()) continue;
-
-			// new BodyDefinition
-			bodyDefinitions.emplace_back(BodyDefinition());
-			BodyDefinition& bodyDefinition = bodyDefinitions.back();
-
-			// b2BodyDef
-			{
-				b2BodyDef& bodyDef = bodyDefinition.first;
-				bodyDef.userData = (void*)i; // register slot's index
-				bodyDef.type = b2_dynamicBody; /// <TODO> : kinetic may be desirable in some cases
-				bodyDef.gravityScale = 0;
-				bodyDef.fixedRotation = false;
-				bool isBullet = false; /// <TODO> : use naming convention for <isBullet>
-				bodyDef.bullet = isBullet;
-				//b2BodyDef.position = b2Vec2(position.x, position.y);
-			}
 
 			unsigned int fixtureCount = b2Vecs.size();
 			CCLOG("Fixtures to define:%i", fixtureCount);
+
+			BodyDefinition* bodyDefinition = boneIndexToBodyDefinition[slot->bone->data->index];
+			deque<b2FixtureDef>* bodyDefFixtures = &bodyDefinition->second;
+
 			while (fixtureCount--)
 			{
 				vector<b2Vec2>& vertices = b2Vecs[fixtureCount];
@@ -245,16 +266,16 @@ namespace psi {
 				/// prior to creating final body fixtures, fixture defs' shapes will be <re-scaled to Skeleton Instance's actual scale (if != 1)!!!>
 				/// note that we'll have to use the final <bone> scale!
 
-				bodyDefinition.second.emplace_back(b2FixtureDef());
-				b2FixtureDef& fixtureDef = bodyDefinition.second.back();
-				fixtureDef.shape = fixtureShape.get();
-				fixtureDef.filter.groupIndex = -1; /// <TODO> : turn this into a per-instance common value <?>
+				bodyDefFixtures->emplace_back(b2FixtureDef());
+				b2FixtureDef* fixtureDef = &bodyDefFixtures->back();
+				fixtureDef->shape = fixtureShape.get();
+				fixtureDef->filter.groupIndex = -1; /// <TODO> : same for all enemies, changes when one becomes physics-controlled
 				/// <TODO> : below should probably be user defined when creating SkeletonBody
-				fixtureDef.density = 1;
-				fixtureDef.friction = 0.05f;
-				fixtureDef.restitution = 0.05f;
-				//fixtureDef.filter.categoryBits = PHYSICS_FILTER_CATEGORY_ENEMY;
-				//fixtureDef.filter.maskBits = PHYSICS_FILTER_MASK_ENEMY;
+				fixtureDef->density = 1;
+				fixtureDef->friction = 0.05f;
+				fixtureDef->restitution = 0.05f;
+				//fixtureDef->filter.categoryBits = PHYSICS_FILTER_CATEGORY_ENEMY;
+				//fixtureDef->filter.maskBits = PHYSICS_FILTER_MASK_ENEMY;
 				defaultFixtureShapes.push_back(std::move(fixtureShape)); // register shape for deletion when SkeletonBody dies
 			}
 		}
@@ -285,25 +306,21 @@ namespace psi {
 		auto skeletonInstance = renderInstance->getSkeleton();
 		AnimatedPhysics* animated = new AnimatedPhysics(renderInstance, m_world, renderToBodyScale);
 
-		for (BodyDefinition bodyDefinition : bodyDefinitions)
+		for (BodyDefinition& bodyDefinition : bodyDefinitions)
 		{
 			b2Body* body = m_world->CreateBody(&bodyDefinition.first);
-			spSlot* slot = skeletonInstance->slots[(int)body->GetUserData()];
-			animated->insertBody(body, slot->bone);
+			body->SetAngularDamping(0.f); // sub-bodies get a low damping value so the whole character doesn't freak out when animating
+			body->SetLinearDamping(0.f);
 
-			for (b2FixtureDef fixtureDef : bodyDefinition.second) {
+			spBone* bone = skeletonInstance->bones[(int)body->GetUserData()];
+			animated->insertBody(body, bone);
+
+			for (b2FixtureDef& fixtureDef : bodyDefinition.second) {
 				CreateScaledFixture(body, fixtureDef, scale);
 			}
-			//imgInfo->bodies.push_back(body);
-			//boneBodyMap.insert(pair<string, b2Body*>(string(slot->bone->data->name), body));
-			// sub-bodies get a low damping value so the whole character doesn't freak out when animating
-			body->SetAngularDamping(0.f);
-			body->SetLinearDamping(0.f);
+			
 			// locate our central body and store it for use later
-			//if (strcmp(slotData->data->name, "bodBounds") == 0)
-			//{
-			//	bodyCenter = body;
-			//}
+			//if (strcmp(slotData->data->name, "bodBounds") == 0) bodyCenter = body;
 		}
 
 		return animated;

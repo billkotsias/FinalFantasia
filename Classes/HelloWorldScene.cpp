@@ -112,15 +112,15 @@ bool HelloWorld::init()
 		//chara->teleportBodiesToCurrentPose();
 
 		addChild(skeletonRenderInstance);
-		skeletonRenderInstance->setVisible(false);
+		skeletonRenderInstance->setVisible(true);
 
 		//skeletonInstance->setPosition(random(0., 1000.), random(0., 700.));
 		skeletonRenderInstance->setPosition(500,200);
 		//skeletonInstance->addAnimation(0, "walk", true)->delay = random(0.,1.);
 		skeletonRenderInstance->setSkin(skinName);
 		skeletonRenderInstance->setOpacityModifyRGB(true);
-		skeletonRenderInstance->setDebugBonesEnabled(true);
-		skeletonRenderInstance->setDebugSlotsEnabled(true);
+		skeletonRenderInstance->setDebugBonesEnabled(false);
+		skeletonRenderInstance->setDebugSlotsEnabled(false);
 
 		//skeletonRenderInstance->setToSetupPose();
 		spSkeleton* skeleton = skeletonRenderInstance->getSkeleton();
@@ -186,35 +186,45 @@ bool HelloWorld::init()
 void HelloWorld::update(float deltaTime)
 {
 	static float curTime = 0.f;
-	static float nextBall = 1.1f;
+	static float nextBall = 0.1f;
 
-	deltaTime = 1.f / 60;
+	deltaTime = 1.f / 100;
 	Node::update(deltaTime);
-	spSkeleton* skeleton = skeletonRenderInstance->getSkeleton();
-	spAnimation** anims = skeleton->data->animations;
+	spSkeleton* testSkel = skeletonRenderInstance->getSkeleton();
+	spAnimation** anims = testSkel->data->animations;
 
+	spSkeleton* charaSkeleton = chara->getRenderable()->getSkeleton();
+	//chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+1);
+	/// <TODO> : below 2 lines of code go in an all-purpose function in AnimatedPhysics
+	/// <TODO> : we just need to restore bone->x,y values to bone->data->x,y, setToSetupPose is an <overkill>
+	spSkeleton_setBonesToSetupPose(charaSkeleton);
+	//spAnimation_apply(anims[0], charaSkeleton, 5, 5, true, NULL, NULL, 1.f, false, false);
 	spAnimation_apply(anims[0], chara->getRenderable()->getSkeleton(), curTime, curTime, true, NULL, NULL, 1.f, false, false);
 	chara->getRenderable()->updateWorldTransform();
-	if (curTime <= 0.f) {
+	if (curTime <= 3.1f /*|| curTime > 10*/) {
 		chara->teleportBodiesToCurrentPose();
 	} else {
-		chara->impulseBodiesToCurrentPose();
+		chara->impulseBodiesToCurrentPose(deltaTime);
 	}
-	physicsWorld.Step(1.f / 60, 10, 10);
+	physicsWorld.Step(1.f / 60, 100, 100);
+	//chara->getRenderable()->updateWorldTransform();
+	/// <TODO> : determine that constraints are actually applied here!
 
 	chara->matchPoseToBodies();
-	chara->getRenderable()->updateWorldTransform();
+	//chara->getRenderable()->updateWorldTransform();
 
 	curTime += deltaTime;
 	//
 	// use Animation 0 (walk)
 	///<setupPose> Controls mixing when alpha < 1. When true the value from the timeline is mixed with the value from the setup pose.When false the value from the timeline is mixed with the value from the current pose.Passing true when alpha is 1 is slightly more efficient for most timelines.
 	///<mixingOut> True when changing alpha over time toward 0 (the setup or current pose), false when changing alpha toward 1 (the timeline's pose). Used for timelines which perform instant transitions, such as DrawOrderTimeline or AttachmentTimeline.
-	//spAnimation_apply(anims[0], skeleton, /* only useful for events */ curTime, curTime += deltaTime/1.f, true, NULL, NULL, 1.f, false, false);
-	//spSkeleton_updateWorldTransform(skeleton);
+	spSkeleton_setBonesToSetupPose(testSkel);
+	spAnimation_apply(anims[0], testSkel, /* only useful for events */ curTime - deltaTime / 1.f, curTime, true, NULL, NULL, 1.f, true, false);
+	//spSkeleton_findBone(testSkel, "head")->x += 100.f;
+	spSkeleton_updateWorldTransform(testSkel);
 
 	nextBall -= deltaTime;
-	if (nextBall <= 0) {
+	if (nextBall <= 0 && curTime < 0) {
 		nextBall += 0.25f;
 		b2BodyDef bdef;
 		bdef.type = b2_dynamicBody; //this will be a dynamic body
@@ -227,7 +237,7 @@ void HelloWorld::update(float deltaTime)
 		b2CircleShape sh;
 		sh.m_radius = 10 * chara->getRenderToBodyScale().x;
 		fix.shape = &sh;
-		fix.density = 100;
+		fix.density = 10;
 		body->CreateFixture(&fix);
 	}
 }

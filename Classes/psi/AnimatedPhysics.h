@@ -40,7 +40,7 @@ namespace psi {
 		void getBoneScreenTransform(const spBone* const bone, const cocos2d::Mat4& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const;
 
 		/// set animation frame;
-		void impulseBodiesToCurrentPose();
+		void impulseBodiesToCurrentPose(float timeStep);
 		/// - run physics
 		void matchPoseToBodies();
 		/// - render

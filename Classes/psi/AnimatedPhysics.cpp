@@ -96,18 +96,38 @@ namespace psi {
 	// inverse function of "teleportBodiesToCurrentPose"
 	void AnimatedPhysics::matchPoseToBodies()
 	{
+		auto renderInverseTransform = renderInstance->getWorldToNodeTransform();
+
+		cocos2d::Quaternion renderQuaternion;
+		renderInstance->getNodeToWorldTransform().getRotation(&renderQuaternion);
+		float renderRotation = renderQuaternion.toAxisAngle(&cocos2d::Vec3(0, 0, 1));
+
+		// essential to traverse bones hierarchically, update parent transform before childrens'
 		for (b2Body* body : b2Bodies)
 		{
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			spBone* bone = data->bone;
-			float newR = spBone_worldToLocalRotation(bone->parent, RAD_TO_DEGf(body->GetAngle())) - 90; ;
-			CCLOG("Bone %s o=%f n=%f", bone->data->name, bone->rotation, newR);
-			bone->rotation = newR;
-			//spBone_updateWorldTransform(bone);
+			if (!bone->parent) continue; /// <TODO> : (probably) change renderInstance transformation itself!!!
+			//CCLOG("Bone %s o=%f n=%f", bone->data->name, bone->rotation, newR);
+
+			// rotation
+			bone->rotation = spBone_worldToLocalRotation(bone->parent, RAD_TO_DEGf(body->GetAngle() + renderRotation - M_PI_2));
+
+			// position is a lot more hassle-full
+			cocos2d::Vec3 pos(body->GetPosition().x, body->GetPosition().y, 0);
+			pos.x /= renderToBodyScale.x;
+			pos.y /= renderToBodyScale.y;
+			renderInverseTransform.transformPoint(&pos);
+			spBone_worldToLocal(bone->parent, pos.x, pos.y, &pos.x, &pos.y);
+			bone->x = pos.x;
+			bone->y = pos.y;
+
+			// update bone
+			spBone_updateWorldTransform(bone);
 		}
 	}
 
-	void AnimatedPhysics::impulseBodiesToCurrentPose()
+	void AnimatedPhysics::impulseBodiesToCurrentPose(float timeStep)
 	{
 		auto renderTransform = renderInstance->getNodeToWorldTransform();
 		// this could be optimized, but probably not required the hassle
@@ -115,11 +135,11 @@ namespace psi {
 		renderTransform.getRotation(&renderQuaternion);
 		float renderRotation = renderQuaternion.toAxisAngle(&cocos2d::Vec3(0, 0, 1));
 
-		float timeStep = 1.f / 60;
 		float invTimeStep = 1.f / timeStep;
 
 		for (b2Body* body : b2Bodies)
 		{
+			body->SetAwake(true);
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			spBone* bone = data->bone;
 			cocos2d::Vec3 screenPosition;
@@ -130,9 +150,9 @@ namespace psi {
 			// hack-in linear impulse
 			// 0.95f are there in order NOT to accumulate error in "previousImpulse"
 			b2Vec2 newImpulse{ b2Vec2(screenPosition.x, screenPosition.y) - body->GetPosition() };
-			newImpulse *= invTimeStep;
-			const_cast<b2Vec2&>(body->GetLinearVelocity()) += 0.95f * (newImpulse - data->previousImpulse); // doesn't require "friend class"
-			data->previousImpulse = 0.95f * newImpulse;
+			newImpulse *= invTimeStep * 1.f;
+			const_cast<b2Vec2&>(body->GetLinearVelocity()) += newImpulse - data->previousImpulse; // doesn't require "friend class"
+			data->previousImpulse = 0.9f * newImpulse;
 			bone->data->name;
 
 			// hack-in angular impulse

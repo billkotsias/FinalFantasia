@@ -1,6 +1,8 @@
 #pragma once
 
 #include "vector"
+#include "deque"
+#include "utility"
 #include "Box2D\Box2D.h"
 
 struct spSkeletonData;
@@ -32,9 +34,9 @@ namespace psi {
 
 	public:
 
-		typedef pair<b2BodyDef, vector< b2FixtureDef > > BodyDefinition;
+		typedef pair<b2BodyDef, deque< b2FixtureDef > > BodyDefinition;
 		typedef vector<BodyDefinition> BodyDefinitions;
-		typedef vector< unique_ptr<b2Shape> > ShapesRegistry;
+		typedef deque< unique_ptr<b2Shape> > ShapesRegistry;
 
 		static inline b2Vec2 GetWorldScale(spBone*);
 
