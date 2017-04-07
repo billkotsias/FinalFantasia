@@ -84,6 +84,8 @@ namespace psi {
 
 		for (b2Body* body : b2Bodies)
 		{
+			//body->SetAngularDamping(1.f);
+			//body->SetLinearDamping(1.f);
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			data->previousImpulse.SetZero();
 			data->previousTorque = 0;
@@ -117,6 +119,7 @@ namespace psi {
 			bone->rotation = spBone_worldToLocalRotation(bone->parent, RAD_TO_DEGf(body->GetAngle() + renderRotation - M_PI_2));
 
 			// position is a lot more hassle-full
+			/// <TODO> : slow!
 			cocos2d::Vec3 pos(body->GetPosition().x, body->GetPosition().y, 0);
 			pos.x /= renderToBodyScale.x;
 			pos.y /= renderToBodyScale.y;
@@ -139,6 +142,8 @@ namespace psi {
 
 		for (b2Body* body : b2Bodies)
 		{
+			body->SetAngularDamping(0.f);
+			body->SetLinearDamping(0.f);
 			body->SetAwake(true);
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			spBone* bone = data->bone;
@@ -151,7 +156,7 @@ namespace psi {
 			// 0.95f = how quickly the skeleton body adapts back to its animation sequence
 			// 1.f = never
 			// 0.5f = ultimate minimum recommended - skeleton becomes jumpy
-			float adaptBack = 0.75f;
+			float adaptBack = 0.85f;
 			b2Vec2 newImpulse{ b2Vec2(screenPosition.x, screenPosition.y) - body->GetPosition() };
 			newImpulse *= invTimeStep * 1.f;
 			const_cast<b2Vec2&>(body->GetLinearVelocity()) += newImpulse - data->previousImpulse; // doesn't require "friend class"

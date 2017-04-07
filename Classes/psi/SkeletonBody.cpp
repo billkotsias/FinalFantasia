@@ -220,6 +220,9 @@ namespace psi {
 			bodyDef->type = b2_dynamicBody; /// <TODO> : kinetic may be desirable in some cases
 			bodyDef->gravityScale = 0;
 			bodyDef->fixedRotation = false;
+			/// <TODO> : pass-in these values as they have effect on teleported bones come-back & (ragdoll?)
+			bodyDef->angularDamping = (1e+20f);
+			bodyDef->linearDamping = (1e+20);
 			bool isBullet = false; /// <TODO> : use naming convention for <isBullet>
 			bodyDef->bullet = isBullet;
 			//b2BodyDef->position = b2Vec2(position.x, position.y);
@@ -272,8 +275,8 @@ namespace psi {
 				fixtureDef->filter.groupIndex = -1; /// <TODO> : same for all enemies, changes when one becomes physics-controlled
 				/// <TODO> : below should probably be user defined when creating SkeletonBody
 				fixtureDef->density = 1;
-				fixtureDef->friction = 0.05f;
-				fixtureDef->restitution = 0.05f;
+				fixtureDef->friction = 0.5f;
+				fixtureDef->restitution = .3f;
 				//fixtureDef->filter.categoryBits = PHYSICS_FILTER_CATEGORY_ENEMY;
 				//fixtureDef->filter.maskBits = PHYSICS_FILTER_MASK_ENEMY;
 				defaultFixtureShapes.push_back(std::move(fixtureShape)); // register shape for deletion when SkeletonBody dies
@@ -309,9 +312,6 @@ namespace psi {
 		for (BodyDefinition& bodyDefinition : bodyDefinitions)
 		{
 			b2Body* body = m_world->CreateBody(&bodyDefinition.first);
-			body->SetAngularDamping(0.f); // sub-bodies get a low damping value so the whole character doesn't freak out when animating
-			body->SetLinearDamping(0.f);
-
 			spBone* bone = skeletonInstance->bones[(int)body->GetUserData()];
 			animated->insertBody(body, bone);
 

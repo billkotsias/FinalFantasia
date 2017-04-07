@@ -74,7 +74,9 @@ bool HelloWorld::init()
     auto sprite = Sprite::create(Paths::RES + "HelloWorld.png");
 	
     // position the sprite on the center of the screen
-    sprite->setPosition(Vec2(visibleSize.width/2 + origin.x, visibleSize.height/2 + origin.y));
+	//sprite->setPosition(Vec2(visibleSize.width / 2 + origin.x, visibleSize.height / 2 + origin.y));
+	sprite->setAnchorPoint(Vec2());
+	sprite->setPosition(Vec2());
 
     // add the sprite as a child to this layer
     this->addChild(sprite, 0);
@@ -101,7 +103,6 @@ bool HelloWorld::init()
 	float renderToBodyScale = 0.01f;
 	for (int i = 0; i < 1; ++i)
 	{
-		skeletonRenderInstance = spine::SkeletonRenderer::createWithData(skeletonData, false); // own=true => destroy the data when instance expires!
 		bd = new psi::SkeletonBody(skeletonData, b2Vec2(renderToBodyScale, renderToBodyScale), skinName);
 		chara = bd->createInstance(&physicsWorld, 1.f);
 		chara->getRenderable()->setToSetupPose();
@@ -111,11 +112,11 @@ bool HelloWorld::init()
 		//chara->getRenderable()->updateWorldTransform();
 		//chara->teleportBodiesToCurrentPose();
 
+		skeletonRenderInstance = spine::SkeletonRenderer::createWithData(skeletonData, false); // own=true => destroy the data when instance expires!
 		addChild(skeletonRenderInstance);
 		skeletonRenderInstance->setVisible(true);
-
 		//skeletonInstance->setPosition(random(0., 1000.), random(0., 700.));
-		skeletonRenderInstance->setPosition(500,200);
+		skeletonRenderInstance->setPosition(200,200);
 		//skeletonInstance->addAnimation(0, "walk", true)->delay = random(0.,1.);
 		skeletonRenderInstance->setSkin(skinName);
 		skeletonRenderInstance->setOpacityModifyRGB(true);
@@ -163,23 +164,21 @@ bool HelloWorld::init()
 	debugDraw->SetFlags(flags);
 	physicsWorld.SetDebugDraw(debugDraw);
 
-	b2BodyDef myBodyDef;
-	myBodyDef.type = b2_dynamicBody; //this will be a dynamic body
-	myBodyDef.position.Set(25, 25); //set the starting position
-	myBodyDef.angle = 0; //set the starting angle
-	myBodyDef.userData = sprite;
-	myBodyDef.gravityScale = 0;
-	b2Body* dynamicBody = physicsWorld.CreateBody(&myBodyDef);
-
-	b2PolygonShape boxShape;
-	boxShape.SetAsBox(2, 2);
-	b2FixtureDef boxFixtureDef;
-	boxFixtureDef.shape = &boxShape;
-	boxFixtureDef.density = 1;
-	boxFixtureDef.restitution = 1;
-	boxFixtureDef.friction = 1;
-
-	dynamicBody->CreateFixture(&boxFixtureDef);
+	//b2BodyDef myBodyDef;
+	//myBodyDef.type = b2_dynamicBody; //this will be a dynamic body
+	//myBodyDef.position.Set(250, 250); //set the starting position
+	//myBodyDef.angle = 0; //set the starting angle
+	//myBodyDef.userData = sprite;
+	//myBodyDef.gravityScale = 0;
+	//b2Body* dynamicBody = physicsWorld.CreateBody(&myBodyDef);
+	//b2PolygonShape boxShape;
+	//boxShape.SetAsBox(200, 200);
+	//b2FixtureDef boxFixtureDef;
+	//boxFixtureDef.shape = &boxShape;
+	//boxFixtureDef.density = 1;
+	//boxFixtureDef.restitution = 1;
+	//boxFixtureDef.friction = 1;
+	//dynamicBody->CreateFixture(&boxFixtureDef);
 	return true;
 }
 
@@ -194,15 +193,15 @@ void HelloWorld::update(float deltaTime)
 	spAnimation** anims = testSkel->data->animations;
 
 	spSkeleton* charaSkeleton = chara->getRenderable()->getSkeleton();
-	chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+2);
+	//chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+2);
 	//CCLOG("Skel rot %f=", chara->getRenderable()->getRotation());
 	/// <TODO> : below 2 lines of code go in an all-purpose function in AnimatedPhysics
 	/// <TODO> : we just need to restore bone->x,y values to bone->data->x,y, setToSetupPose is an <overkill>
 	spSkeleton_setBonesToSetupPose(charaSkeleton);
 	//spAnimation_apply(anims[0], charaSkeleton, 5, 5, true, NULL, NULL, 1.f, false, false);
-	spAnimation_apply(anims[0], chara->getRenderable()->getSkeleton(), curTime, curTime, true, NULL, NULL, 1.f, false, false);
+	spAnimation_apply(anims[0], chara->getRenderable()->getSkeleton(), curTime, curTime, true, NULL, NULL, 1.f, true, false);
 	chara->getRenderable()->updateWorldTransform();
-	if (curTime <= 0.f /*|| curTime > 10*/) {
+	if (curTime <= 10.f /*|| curTime > 10*/) {
 		chara->teleportBodiesToCurrentPose();
 	} else {
 		chara->impulseBodiesToCurrentPose(deltaTime);
@@ -221,8 +220,8 @@ void HelloWorld::update(float deltaTime)
 	spSkeleton_updateWorldTransform(testSkel);
 
 	nextBall -= deltaTime;
-	if (nextBall <= 0 && curTime < 10) {
-		nextBall += 0.25f;
+	if (nextBall <= 0 && curTime < 5) {
+		nextBall += 0.3f;
 		b2BodyDef bdef;
 		bdef.type = b2_dynamicBody; //this will be a dynamic body
 		bdef.position.Set(
@@ -235,6 +234,8 @@ void HelloWorld::update(float deltaTime)
 		sh.m_radius = 10 * chara->getRenderToBodyScale().x;
 		fix.shape = &sh;
 		fix.density = 10;
+		fix.restitution = .3f;
+		body->SetBullet(false);
 		body->CreateFixture(&fix);
 	}
 }
