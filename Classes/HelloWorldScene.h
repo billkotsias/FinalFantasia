@@ -27,7 +27,7 @@ public:
 private:
 	
 	spine::SkeletonRenderer* skeletonRenderInstance;
-	b2World physicsWorld{ b2Vec2(0,-100) };
+	b2World physicsWorld{ b2Vec2(0,-10) };
 	psi::SkeletonBody* bd;
 	psi::AnimatedPhysics* chara;
 };

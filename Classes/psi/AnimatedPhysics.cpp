@@ -59,24 +59,28 @@ namespace psi {
 		}
 	}
 
-	void AnimatedPhysics::getBoneScreenTransform(const spBone* const bone, const cocos2d::Mat4& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const
+	void AnimatedPhysics::getBoneScreenTransform(const spBone* const bone, const cocos2d::AffineTransform& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const
 	{
 		outWorldRotation = atan2(bone->c, bone->a) + M_PI_2 - renderRotation;
 
-		/// <TODO> : this should of course be optimized!!!!
-		outWorldPosition.set(bone->worldX, bone->worldY, 0);
-		renderTransform.transformPoint(&outWorldPosition); // slow
+		// new, super-fast way
+		outWorldPosition.x = bone->worldX * renderTransform.a + bone->worldY * renderTransform.c + renderTransform.tx;
 		outWorldPosition.x *= renderToBodyScale.x;
+
+		outWorldPosition.y = bone->worldX * renderTransform.b + bone->worldY * renderTransform.d + renderTransform.ty;
 		outWorldPosition.y *= renderToBodyScale.y;
+		/// old, super-slow way
+		//outWorldPosition.set(bone->worldX, bone->worldY, 0);
+		//renderTransform.transformPoint(&outWorldPosition); // slow
+		//outWorldPosition.x *= renderToBodyScale.x;
+		//outWorldPosition.y *= renderToBodyScale.y;
 	}
 
 	void AnimatedPhysics::teleportBodiesToCurrentPose()
 	{
-		auto renderTransform = renderInstance->getNodeToWorldTransform();
-		// this could be optimized, but probably not required the hassle
-		cocos2d::Quaternion renderQuaternion;
-		renderTransform.getRotation(&renderQuaternion);
-		float renderRotation = renderQuaternion.toAxisAngle(&cocos2d::Vec3(0, 0, 1));
+		//auto renderTransform = renderInstance->getNodeToWorldTransform(); // old, slow, "buggy"
+		auto renderTransform = renderInstance->getNodeToWorldAffineTransform();
+		float renderRotation = atan2(renderTransform.c, renderTransform.a);
 
 		for (b2Body* body : b2Bodies)
 		{
@@ -88,6 +92,7 @@ namespace psi {
 			cocos2d::Vec3 screenPosition;
 			float screenRotation;
 			getBoneScreenTransform(bone, renderTransform, renderRotation, screenPosition, screenRotation);
+			//if (string("left hand") == bone->data->name) CCLOG("%s %f %f", bone->data->name, RAD_TO_DEGf(screenRotation), RAD_TO_DEGf(renderRotation));
 
 			body->SetTransform(b2Vec2(screenPosition.x, screenPosition.y), screenRotation );
 		}
@@ -97,10 +102,8 @@ namespace psi {
 	void AnimatedPhysics::matchPoseToBodies()
 	{
 		auto renderInverseTransform = renderInstance->getWorldToNodeTransform();
-
-		cocos2d::Quaternion renderQuaternion;
-		renderInstance->getNodeToWorldTransform().getRotation(&renderQuaternion);
-		float renderRotation = renderQuaternion.toAxisAngle(&cocos2d::Vec3(0, 0, 1));
+		auto renderTransform = renderInstance->getNodeToWorldAffineTransform();
+		float renderRotation = atan2(renderTransform.c, renderTransform.a);
 
 		// essential to traverse bones hierarchically, update parent transform before childrens'
 		for (b2Body* body : b2Bodies)
@@ -129,11 +132,8 @@ namespace psi {
 
 	void AnimatedPhysics::impulseBodiesToCurrentPose(float timeStep)
 	{
-		auto renderTransform = renderInstance->getNodeToWorldTransform();
-		// this could be optimized, but probably not required the hassle
-		cocos2d::Quaternion renderQuaternion;
-		renderTransform.getRotation(&renderQuaternion);
-		float renderRotation = renderQuaternion.toAxisAngle(&cocos2d::Vec3(0, 0, 1));
+		auto renderTransform = renderInstance->getNodeToWorldAffineTransform();
+		float renderRotation = atan2(renderTransform.c, renderTransform.a);
 
 		float invTimeStep = 1.f / timeStep;
 
@@ -148,18 +148,22 @@ namespace psi {
 			const b2Transform& prevTransform = body->GetTransform();
 
 			// hack-in linear impulse
-			// 0.95f are there in order NOT to accumulate error in "previousImpulse"
+			// 0.95f = how quickly the skeleton body adapts back to its animation sequence
+			// 1.f = never
+			// 0.5f = ultimate minimum recommended - skeleton becomes jumpy
+			float adaptBack = 0.75f;
 			b2Vec2 newImpulse{ b2Vec2(screenPosition.x, screenPosition.y) - body->GetPosition() };
 			newImpulse *= invTimeStep * 1.f;
 			const_cast<b2Vec2&>(body->GetLinearVelocity()) += newImpulse - data->previousImpulse; // doesn't require "friend class"
-			data->previousImpulse = 0.9f * newImpulse;
-			bone->data->name;
+			data->previousImpulse = adaptBack * newImpulse;
 
 			// hack-in angular impulse
 			float newTorque = screenRotation - body->GetAngle();
+			while (newTorque > M_PI) newTorque -= M_2PI;
+			while (newTorque < -M_PI) newTorque += M_2PI;
 			newTorque *= invTimeStep;
 			body->m_angularVelocity += newTorque - data->previousTorque; // not too bad to actually call "SetAngularVelocity", but better make body return "const float&"
-			data->previousTorque = 0.95f * newTorque;
+			data->previousTorque = adaptBack * newTorque;
 		}
 	}
 }

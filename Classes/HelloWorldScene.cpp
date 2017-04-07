@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "HelloWorldScene.h"
 #include "SimpleAudioEngine.h"
 #include "Paths.h"
@@ -98,14 +98,14 @@ bool HelloWorld::init()
 	string skinName = "goblingirl";
 	/// <NOTE> : this depends on source Spine data, the bigger source, the lower we should scale to bring inside 0.1->10 Box2D size units
 	/// ideally, all characters in a game will have the same source scale and thus share the same number here
-	float renderToBodyScale = 0.25f;
+	float renderToBodyScale = 0.01f;
 	for (int i = 0; i < 1; ++i)
 	{
 		skeletonRenderInstance = spine::SkeletonRenderer::createWithData(skeletonData, false); // own=true => destroy the data when instance expires!
 		bd = new psi::SkeletonBody(skeletonData, b2Vec2(renderToBodyScale, renderToBodyScale), skinName);
 		chara = bd->createInstance(&physicsWorld, 1.f);
 		chara->getRenderable()->setToSetupPose();
-		chara->getRenderable()->setPosition(700, 50);
+		chara->getRenderable()->setPosition(700, 150);
 		chara->getRenderable()->setRotation(0);
 		addChild(chara->getRenderable());
 		//chara->getRenderable()->updateWorldTransform();
@@ -188,30 +188,27 @@ void HelloWorld::update(float deltaTime)
 	static float curTime = 0.f;
 	static float nextBall = 0.1f;
 
-	deltaTime = 1.f / 100;
+	deltaTime = 1.f / 60;
 	Node::update(deltaTime);
 	spSkeleton* testSkel = skeletonRenderInstance->getSkeleton();
 	spAnimation** anims = testSkel->data->animations;
 
 	spSkeleton* charaSkeleton = chara->getRenderable()->getSkeleton();
-	//chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+1);
+	chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+2);
+	//CCLOG("Skel rot %f=", chara->getRenderable()->getRotation());
 	/// <TODO> : below 2 lines of code go in an all-purpose function in AnimatedPhysics
 	/// <TODO> : we just need to restore bone->x,y values to bone->data->x,y, setToSetupPose is an <overkill>
 	spSkeleton_setBonesToSetupPose(charaSkeleton);
 	//spAnimation_apply(anims[0], charaSkeleton, 5, 5, true, NULL, NULL, 1.f, false, false);
 	spAnimation_apply(anims[0], chara->getRenderable()->getSkeleton(), curTime, curTime, true, NULL, NULL, 1.f, false, false);
 	chara->getRenderable()->updateWorldTransform();
-	if (curTime <= 3.1f /*|| curTime > 10*/) {
+	if (curTime <= 0.f /*|| curTime > 10*/) {
 		chara->teleportBodiesToCurrentPose();
 	} else {
 		chara->impulseBodiesToCurrentPose(deltaTime);
 	}
-	physicsWorld.Step(1.f / 60, 100, 100);
-	//chara->getRenderable()->updateWorldTransform();
-	/// <TODO> : determine that constraints are actually applied here!
-
+	physicsWorld.Step(deltaTime, 10, 4);
 	chara->matchPoseToBodies();
-	//chara->getRenderable()->updateWorldTransform();
 
 	curTime += deltaTime;
 	//
@@ -224,7 +221,7 @@ void HelloWorld::update(float deltaTime)
 	spSkeleton_updateWorldTransform(testSkel);
 
 	nextBall -= deltaTime;
-	if (nextBall <= 0 && curTime < 0) {
+	if (nextBall <= 0 && curTime < 10) {
 		nextBall += 0.25f;
 		b2BodyDef bdef;
 		bdef.type = b2_dynamicBody; //this will be a dynamic body

@@ -37,7 +37,7 @@ namespace psi {
 		void teleportBodiesToCurrentPose();
 
 		// now we're talking
-		void getBoneScreenTransform(const spBone* const bone, const cocos2d::Mat4& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const;
+		void getBoneScreenTransform(const spBone* const bone, const cocos2d::AffineTransform& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const;
 
 		/// set animation frame;
 		void impulseBodiesToCurrentPose(float timeStep);
