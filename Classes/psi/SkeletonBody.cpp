@@ -35,13 +35,12 @@ namespace psi {
 		return nullptr;
 	}
 
-	void SkeletonBody::GetAttachmentVertices(std::vector<std::vector<b2Vec2>>& arrayOfVertices, const spAttachment* const _attachment, spSlot* const slot, const b2Vec2& _scale)
+	void SkeletonBody::GetAttachmentVertices(std::vector<std::vector<b2Vec2>>& arrayOfVertices, const spAttachment* const _attachment, spSlot* const slot, const float& _scale)
 	{
 		std::vector<b2Vec2> b2Vecs; // x,y pairs
 		spBone* const parentBone = slot->bone;
 		b2Vec2 scale = GetWorldScale(parentBone);
-		scale.x *= _scale.x;
-		scale.y *= _scale.y;
+		scale *= _scale;
 
 		/// <NOTE> : bone scaling is "burned-in" cause we can only take it into account at b2Body-creation time
 		auto parseVertexAttachment = [&](spVertexAttachment& vAttachment)
@@ -176,7 +175,7 @@ namespace psi {
 
 	//
 
-	SkeletonBody::SkeletonBody(spSkeletonData* const skeletonData, const b2Vec2& scale, string skinName, const SkeletonBodyPose* const initPose) :
+	SkeletonBody::SkeletonBody(spSkeletonData* const skeletonData, const float& scale, string skinName, const SkeletonBodyPose* const initPose) :
 		skeletonData(skeletonData), renderToBodyScale(scale)
 	{
 		// create and setup skeleton before parsing
@@ -220,9 +219,9 @@ namespace psi {
 			bodyDef->type = b2_dynamicBody; /// <TODO> : kinetic may be desirable in some cases
 			bodyDef->gravityScale = 0;
 			bodyDef->fixedRotation = false;
-			/// <TODO> : pass-in these values as they have effect on teleported bones come-back & (ragdoll?)
-			bodyDef->angularDamping = (1e+20f);
-			bodyDef->linearDamping = (1e+20);
+			// this must be zero when impulsing, and with teleporting an easier-to-grasp value is user-defined, elsewhere (0 to 1)
+			bodyDef->angularDamping = 0.f;
+			bodyDef->linearDamping = 0.f;
 			bool isBullet = false; /// <TODO> : use naming convention for <isBullet>
 			bodyDef->bullet = isBullet;
 			//b2BodyDef->position = b2Vec2(position.x, position.y);
@@ -294,8 +293,15 @@ namespace psi {
 	{
 	}
 
-	AnimatedPhysics* SkeletonBody::createInstance(b2World * m_world, float scale)
+	AnimatedPhysics* SkeletonBody::createInstance(b2World * m_world, const float& scale, const bool& createJoints)
 	{
+		// do NOT create "bone-to-body" map if we are not creating joints. If created, we want it to get auto-destroyed at end of this function
+		// now THAT's optimization
+		typedef map<spBone*, b2Body*> BoneToBodyMap;
+		unique_ptr< BoneToBodyMap > boneToBodyMapPtr( createJoints ? new map<spBone*, b2Body*> : nullptr );
+		BoneToBodyMap& boneToBodyMap = *boneToBodyMapPtr.get();
+		const float finalScale = renderToBodyScale * scale;
+		
 		spine::SkeletonRenderer* renderInstance;
 		if (defaultRenderInstance) {
 			renderInstance = defaultRenderInstance;
@@ -319,8 +325,35 @@ namespace psi {
 				CreateScaledFixture(body, fixtureDef, scale);
 			}
 			
-			// locate our central body and store it for use later
-			//if (strcmp(slotData->data->name, "bodBounds") == 0) bodyCenter = body;
+			if (createJoints) boneToBodyMap[bone] = body; // create joints?
+		}
+
+		// maybe below 3 lines are useless, but let's try them first
+		renderInstance->setToSetupPose();
+		//renderInstance->updateWorldTransform(); // needed?
+		animated->teleportBodiesToCurrentPose();
+		for (BoneToBodyMap::iterator it = boneToBodyMap.begin(); it != boneToBodyMap.end(); ++it)
+		{
+			spBone* bone = it->first;
+			//if (bone->data->name == string("right foot")) continue; // debug: remove
+			spBone* parentBone = bone->parent;
+			if (parentBone)
+			{
+				b2Body* body = it->second;
+				b2Body* parentBody = boneToBodyMap[parentBone];
+
+				b2RevoluteJointDef jointDef;
+				jointDef.bodyA = parentBody;
+				jointDef.localAnchorA = parentBody->GetLocalPoint( body->GetPosition() );
+				jointDef.bodyB = body;
+				jointDef.localAnchorB = b2Vec2_zero;
+				jointDef.collideConnected = false;
+				/// <TODO> : implement CONSTRAINTS <!>
+				jointDef.lowerAngle;
+				jointDef.upperAngle;
+				b2RevoluteJoint* joint = static_cast<b2RevoluteJoint*>(m_world->CreateJoint(&jointDef));
+				animated->insertJoint(joint);
+			}
 		}
 
 		return animated;

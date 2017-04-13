@@ -48,17 +48,17 @@ namespace psi {
 		};
 		// a more generic and suitable function than 'spSkeleton_getAttachmentForSlotIndex'
 		static spAttachment* GetAttachmentOfSlotIndex(const spSkeletonData* const data, const int slotIndex, const char* const attachmentName, const spSkin* const skin = nullptr);
-		static void GetAttachmentVertices(vector< vector<b2Vec2> >& destination, const spAttachment* const _attachment, spSlot* const, const b2Vec2& scale);
+		static void GetAttachmentVertices(vector< vector<b2Vec2> >& destination, const spAttachment* const _attachment, spSlot* const, const float& scale);
 
 		static void CreateScaledFixture(b2Body* body, b2FixtureDef& fixtureDef, float scale);
 
 		// end of static
 
 		// Create automatically an assembly of Box2D body definitions from spSkeletonData
-		SkeletonBody(spSkeletonData* const data, const b2Vec2& scale = b2Vec2(1.f, 1.f), string skinName = "", const SkeletonBodyPose* const = nullptr);
+		SkeletonBody(spSkeletonData* const data, const float& scale = 1.f, string skinName = "", const SkeletonBodyPose* const = nullptr);
 		virtual ~SkeletonBody();
 
-		AnimatedPhysics* createInstance(b2World* m_world, float scale);
+		AnimatedPhysics* createInstance(b2World* const m_world, const float& scale, const bool& createJoints = true);
 
 	private:
 
@@ -70,6 +70,6 @@ namespace psi {
 
 		BodyDefinitions bodyDefinitions;
 
-		const b2Vec2 renderToBodyScale; // render coords * this = body coords
+		const float renderToBodyScale; // render coords * this = body coords
 	};
 }

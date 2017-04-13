@@ -103,8 +103,8 @@ bool HelloWorld::init()
 	float renderToBodyScale = 0.01f;
 	for (int i = 0; i < 1; ++i)
 	{
-		bd = new psi::SkeletonBody(skeletonData, b2Vec2(renderToBodyScale, renderToBodyScale), skinName);
-		chara = bd->createInstance(&physicsWorld, 1.f);
+		bd = new psi::SkeletonBody(skeletonData, renderToBodyScale, skinName);
+		chara = bd->createInstance(&physicsWorld, 1.f, true);
 		chara->getRenderable()->setToSetupPose();
 		chara->getRenderable()->setPosition(700, 150);
 		chara->getRenderable()->setRotation(0);
@@ -120,8 +120,8 @@ bool HelloWorld::init()
 		//skeletonInstance->addAnimation(0, "walk", true)->delay = random(0.,1.);
 		skeletonRenderInstance->setSkin(skinName);
 		skeletonRenderInstance->setOpacityModifyRGB(true);
-		skeletonRenderInstance->setDebugBonesEnabled(false);
-		skeletonRenderInstance->setDebugSlotsEnabled(false);
+		skeletonRenderInstance->setDebugBonesEnabled(true);
+		skeletonRenderInstance->setDebugSlotsEnabled(true);
 
 		//skeletonRenderInstance->setToSetupPose();
 		spSkeleton* skeleton = skeletonRenderInstance->getSkeleton();
@@ -187,12 +187,13 @@ void HelloWorld::update(float deltaTime)
 	static float curTime = 0.f;
 	static float nextBall = 0.1f;
 
-	deltaTime = 1.f / 60;
+	deltaTime = 1.f / 200;
 	Node::update(deltaTime);
 	spSkeleton* testSkel = skeletonRenderInstance->getSkeleton();
 	spAnimation** anims = testSkel->data->animations;
 
 	spSkeleton* charaSkeleton = chara->getRenderable()->getSkeleton();
+	chara->getRenderable()->setOpacity(100);
 	//chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+2);
 	//CCLOG("Skel rot %f=", chara->getRenderable()->getRotation());
 	/// <TODO> : below 2 lines of code go in an all-purpose function in AnimatedPhysics
@@ -201,7 +202,7 @@ void HelloWorld::update(float deltaTime)
 	//spAnimation_apply(anims[0], charaSkeleton, 5, 5, true, NULL, NULL, 1.f, false, false);
 	spAnimation_apply(anims[0], chara->getRenderable()->getSkeleton(), curTime, curTime, true, NULL, NULL, 1.f, true, false);
 	chara->getRenderable()->updateWorldTransform();
-	if (curTime <= 10.f /*|| curTime > 10*/) {
+	if (curTime <= 0.f /*|| curTime > 10*/) {
 		chara->teleportBodiesToCurrentPose();
 	} else {
 		chara->impulseBodiesToCurrentPose(deltaTime);
@@ -225,13 +226,13 @@ void HelloWorld::update(float deltaTime)
 		b2BodyDef bdef;
 		bdef.type = b2_dynamicBody; //this will be a dynamic body
 		bdef.position.Set(
-			chara->getRenderable()->getPosition().x * chara->getRenderToBodyScale().x,
-			(chara->getRenderable()->getPosition().y + 500) * chara->getRenderToBodyScale().y
+			chara->getRenderable()->getPosition().x * chara->renderToBodyScale,
+			(chara->getRenderable()->getPosition().y + 500) * chara->renderToBodyScale
 		);
 		b2Body* body = physicsWorld.CreateBody(&bdef);
 		b2FixtureDef fix;
 		b2CircleShape sh;
-		sh.m_radius = 10 * chara->getRenderToBodyScale().x;
+		sh.m_radius = 10 * chara->renderToBodyScale;
 		fix.shape = &sh;
 		fix.density = 10;
 		fix.restitution = .3f;

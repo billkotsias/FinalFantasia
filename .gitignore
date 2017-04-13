@@ -12,6 +12,7 @@
 
 # Build results
 [Dd]ebug/
+proj.win32/Deubg.win32/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/

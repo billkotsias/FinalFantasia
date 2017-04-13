@@ -25,7 +25,7 @@ namespace psi {
 
 	public:
 
-		AnimatedPhysics(spine::SkeletonRenderer* renderInstance, b2World* physicsWorld, const b2Vec2& renderToBodyScale);
+		AnimatedPhysics(spine::SkeletonRenderer* renderInstance, b2World* physicsWorld, const float& renderToBodyScale);
 		virtual ~AnimatedPhysics();
 
 		void insertBody(b2Body* const &, spBone* const &);
@@ -46,7 +46,7 @@ namespace psi {
 		/// - render
 
 		spine::SkeletonRenderer* getRenderable() const { return renderInstance; }
-		const b2Vec2& getRenderToBodyScale() { return renderToBodyScale; }
+		const float& renderToBodyScale; // render coords * this = body coords. (by referencing, we save 4 bytes, but also state that this is same as SkeletonBody)
 
 	private:
 
@@ -56,6 +56,5 @@ namespace psi {
 		//map<spBone*, b2Body*>
 		set<b2Joint*> b2Joints;
 
-		const b2Vec2& renderToBodyScale; // render coords * this = body coords. (by referencing, we save 4 bytes, but also state that this is same as SkeletonBody)
 	};
 }

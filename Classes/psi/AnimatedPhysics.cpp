@@ -7,7 +7,7 @@
 
 namespace psi {
 
-	AnimatedPhysics::AnimatedPhysics(spine::SkeletonRenderer* renderInstance, b2World* physicsWorld, const b2Vec2& renderToBodyScale) :
+	AnimatedPhysics::AnimatedPhysics(spine::SkeletonRenderer* renderInstance, b2World* physicsWorld, const float& renderToBodyScale) :
 		renderInstance(renderInstance),
 		physicsWorld(physicsWorld),
 		renderToBodyScale(renderToBodyScale)
@@ -65,10 +65,10 @@ namespace psi {
 
 		// new, super-fast way
 		outWorldPosition.x = bone->worldX * renderTransform.a + bone->worldY * renderTransform.c + renderTransform.tx;
-		outWorldPosition.x *= renderToBodyScale.x;
+		outWorldPosition.x *= renderToBodyScale;
 
 		outWorldPosition.y = bone->worldX * renderTransform.b + bone->worldY * renderTransform.d + renderTransform.ty;
-		outWorldPosition.y *= renderToBodyScale.y;
+		outWorldPosition.y *= renderToBodyScale;
 		/// old, super-slow way
 		//outWorldPosition.set(bone->worldX, bone->worldY, 0);
 		//renderTransform.transformPoint(&outWorldPosition); // slow
@@ -84,8 +84,6 @@ namespace psi {
 
 		for (b2Body* body : b2Bodies)
 		{
-			//body->SetAngularDamping(1.f);
-			//body->SetLinearDamping(1.f);
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			data->previousImpulse.SetZero();
 			data->previousTorque = 0;
@@ -97,6 +95,10 @@ namespace psi {
 			//if (string("left hand") == bone->data->name) CCLOG("%s %f %f", bone->data->name, RAD_TO_DEGf(screenRotation), RAD_TO_DEGf(renderRotation));
 
 			body->SetTransform(b2Vec2(screenPosition.x, screenPosition.y), screenRotation );
+			/// <TODO> : pass-in "alpha" value in SkeletonBody (FSL?)
+			float invComeback = 0.95f; // 0 = immediately, 1 = never
+			const_cast<b2Vec2&>(body->GetLinearVelocity()) *= invComeback; // doesn't require "friend class"
+			body->m_angularVelocity *= invComeback;
 		}
 	}
 
@@ -121,8 +123,8 @@ namespace psi {
 			// position is a lot more hassle-full
 			/// <TODO> : slow!
 			cocos2d::Vec3 pos(body->GetPosition().x, body->GetPosition().y, 0);
-			pos.x /= renderToBodyScale.x;
-			pos.y /= renderToBodyScale.y;
+			pos.x /= renderToBodyScale;
+			pos.y /= renderToBodyScale;
 			renderInverseTransform.transformPoint(&pos);
 			spBone_worldToLocal(bone->parent, pos.x, pos.y, &pos.x, &pos.y);
 			bone->x = pos.x;
@@ -142,8 +144,6 @@ namespace psi {
 
 		for (b2Body* body : b2Bodies)
 		{
-			body->SetAngularDamping(0.f);
-			body->SetLinearDamping(0.f);
 			body->SetAwake(true);
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			spBone* bone = data->bone;
@@ -153,10 +153,11 @@ namespace psi {
 			const b2Transform& prevTransform = body->GetTransform();
 
 			// hack-in linear impulse
+			/// <TODO> : make this user-defined
 			// 0.95f = how quickly the skeleton body adapts back to its animation sequence
 			// 1.f = never
 			// 0.5f = ultimate minimum recommended - skeleton becomes jumpy
-			float adaptBack = 0.85f;
+			float adaptBack = 0.9f;
 			b2Vec2 newImpulse{ b2Vec2(screenPosition.x, screenPosition.y) - body->GetPosition() };
 			newImpulse *= invTimeStep * 1.f;
 			const_cast<b2Vec2&>(body->GetLinearVelocity()) += newImpulse - data->previousImpulse; // doesn't require "friend class"
