@@ -311,3 +311,9 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+*.exe
+*.exp
+*.lib
+*.tlog
+*.idb
+*.vcxproj
