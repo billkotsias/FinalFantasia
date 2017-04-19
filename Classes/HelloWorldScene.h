@@ -3,6 +3,8 @@
 
 #include "cocos2d.h"
 
+USING_NS_CC;
+
 namespace psi {
 	class SkeletonBody;
 	class AnimatedPhysics;
@@ -17,6 +19,11 @@ public:
     
     // a selector callback
     void menuCloseCallback(cocos2d::Ref* pSender);
+
+	void onMouseDown(Event * event);
+	void onMouseUp(Event * event);
+	void onMouseMove(Event * event);
+	void onMouseScroll(Event * event);
     
     // implement the "static create()" method manually
     CREATE_FUNC(HelloWorld);
@@ -30,6 +37,8 @@ private:
 	b2World physicsWorld{ b2Vec2(0,-10) };
 	psi::SkeletonBody* bd;
 	psi::AnimatedPhysics* chara;
+
+	bool playAnim{ true };
 };
 
 #endif // __HELLOWORLD_SCENE_H__

@@ -12,7 +12,6 @@ namespace psi {
 		physicsWorld(physicsWorld),
 		renderToBodyScale(renderToBodyScale)
 	{
-		//this->renderToBodyScale *= 0.5f;
 	}
 
 	AnimatedPhysics::~AnimatedPhysics()
@@ -28,35 +27,44 @@ namespace psi {
 		BodyData* data = new BodyData();
 		data->bone = bone;
 		body->SetUserData(data);
-		b2Bodies.insert(body);
+		b2Bodies.push_back(body);
 	}
 	void AnimatedPhysics::destroyBody(b2Body* const & body)
 	{
 		// delete BodyData
 		delete static_cast<BodyData*>(body->GetUserData());
 
-		// get body's joints to remove from our set
-		b2JointEdge* jointEdge = body->GetJointList();
-		while (jointEdge) {
-			b2Joints.erase(jointEdge->joint);
-			jointEdge = jointEdge->next;
-		}
-
 		// remove body from our set
-		b2Bodies.erase(body);
+		// consider using lower_bound() in the future, in case pointers are REALLY sorted in vector!
+		deque<b2Body*>::iterator it = std::find(b2Bodies.begin(), b2Bodies.end(), body);
+#ifndef _DEBUG
+		if (it != b2Bodies.end())
+#endif // !_DEBUG
+			b2Bodies.erase( it );
 
 		// destroy body & joints
 		physicsWorld->DestroyBody(body);
 	}
-	void AnimatedPhysics::insertJoint(b2Joint * const & joint)
-	{
-		b2Joints.insert(joint);
-	}
 	void AnimatedPhysics::destroyJoints()
 	{
-		for (b2Joint* joint : b2Joints) {
-			physicsWorld->DestroyJoint(joint);
+		for (b2Body* body : b2Bodies)
+		{
+			b2JointEdge* jointEdge = body->GetJointList();
+			while (jointEdge) {
+				physicsWorld->DestroyJoint(jointEdge->joint);
+				jointEdge = jointEdge->next;
+			}
 		}
+	}
+
+	void AnimatedPhysics::getBoneRelativeTransform(const spBone* const bone, const cocos2d::AffineTransform& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const
+	{
+		outWorldRotation = atan2(bone->c, bone->a) + M_PI_2 - renderRotation;
+		// no offsets
+		outWorldPosition.x = bone->worldX * renderTransform.a + bone->worldY * renderTransform.c;
+		outWorldPosition.x *= renderToBodyScale;
+		outWorldPosition.y = bone->worldX * renderTransform.b + bone->worldY * renderTransform.d;
+		outWorldPosition.y *= renderToBodyScale;
 	}
 
 	void AnimatedPhysics::getBoneScreenTransform(const spBone* const bone, const cocos2d::AffineTransform& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const
@@ -74,6 +82,17 @@ namespace psi {
 		//renderTransform.transformPoint(&outWorldPosition); // slow
 		//outWorldPosition.x *= renderToBodyScale.x;
 		//outWorldPosition.y *= renderToBodyScale.y;
+	}
+
+	void AnimatedPhysics::setBonesToSetupPose()
+	{
+		for (b2Body* body : b2Bodies)
+		{
+			BodyData* data = static_cast<BodyData*>(body->GetUserData());
+			spBone* bone = data->bone;
+			bone->x = bone->data->x;
+			bone->y = bone->data->y;
+		}
 	}
 
 	void AnimatedPhysics::teleportBodiesToCurrentPose()
@@ -105,28 +124,42 @@ namespace psi {
 	// inverse function of "teleportBodiesToCurrentPose"
 	void AnimatedPhysics::matchPoseToBodies()
 	{
+		// essential to traverse bones hierarchically, update parent transform before childrens'
+		deque<b2Body*>::iterator itBodies = b2Bodies.begin();
+		if (itBodies == b2Bodies.end()) return;
+
 		auto renderInverseTransform = renderInstance->getWorldToNodeTransform();
 		auto renderTransform = renderInstance->getNodeToWorldAffineTransform();
 		float renderRotation = atan2(renderTransform.c, renderTransform.a);
 
-		// essential to traverse bones hierarchically, update parent transform before childrens'
-		for (b2Body* body : b2Bodies)
+		{	// root bone -> put root body's position to 'renderInstance'
+			b2Body* body = *(itBodies++);
+			cocos2d::Vec3 pos(body->GetPosition().x, body->GetPosition().y, 0);
+			pos.x /= renderToBodyScale;
+			pos.y /= renderToBodyScale;
+			renderInstance->getParent()->getWorldToNodeTransform().transformPoint(&pos);
+			renderInstance->setPosition(pos.x, pos.y);
+			CCLOG("RI %s o=%f,%f", static_cast<BodyData*>(body->GetUserData())->bone->data->name, renderInstance->getPosition().x, renderInstance->getPosition().y);
+		}
+
+		for (; itBodies != b2Bodies.end(); ++itBodies)
 		{
+			b2Body* body = *itBodies;
 			BodyData* data = static_cast<BodyData*>(body->GetUserData());
 			spBone* bone = data->bone;
-			if (!bone->parent) continue; /// <TODO> : (probably) change renderInstance transformation itself!!!
-			//CCLOG("Bone %s o=%f n=%f", bone->data->name, bone->rotation, newR);
 
 			// rotation
 			bone->rotation = spBone_worldToLocalRotation(bone->parent, RAD_TO_DEGf(body->GetAngle() + renderRotation - M_PI_2));
 
 			// position is a lot more hassle-full
 			/// <TODO> : slow!
+			/// <REQUIRED IF WE HAVE JOINTS?>
 			cocos2d::Vec3 pos(body->GetPosition().x, body->GetPosition().y, 0);
 			pos.x /= renderToBodyScale;
 			pos.y /= renderToBodyScale;
 			renderInverseTransform.transformPoint(&pos);
 			spBone_worldToLocal(bone->parent, pos.x, pos.y, &pos.x, &pos.y);
+			//CCLOG("Bone %s o=%f,%f | n=%f,%f", bone->data->name, bone->x, bone->y, pos.x, pos.y);
 			bone->x = pos.x;
 			bone->y = pos.y;
 
@@ -154,22 +187,23 @@ namespace psi {
 
 			// hack-in linear impulse
 			/// <TODO> : make this user-defined
-			// 0.95f = how quickly the skeleton body adapts back to its animation sequence
-			// 1.f = never
-			// 0.5f = ultimate minimum recommended - skeleton becomes jumpy
-			float adaptBack = 0.9f;
-			b2Vec2 newImpulse{ b2Vec2(screenPosition.x, screenPosition.y) - body->GetPosition() };
-			newImpulse *= invTimeStep * 1.f;
-			const_cast<b2Vec2&>(body->GetLinearVelocity()) += newImpulse - data->previousImpulse; // doesn't require "friend class"
-			data->previousImpulse = adaptBack * newImpulse;
+			// how much the skeleton reacts to external forces
+			float damping = .1f; // inverted damping, that is
+			//b2Vec2 newImpulse{ b2Vec2(screenPosition.x, screenPosition.y) - body->GetPosition() };
+			//newImpulse *= invTimeStep;
+			//b2Vec2& speedRef = const_cast<b2Vec2&>(body->GetLinearVelocity()); // doesn't require "friend class"
+			//speedRef -= data->previousImpulse;
+			//speedRef *= damping;
+			//speedRef += (data->previousImpulse = newImpulse);
 
 			// hack-in angular impulse
 			float newTorque = screenRotation - body->GetAngle();
 			while (newTorque > M_PI) newTorque -= M_2PI;
 			while (newTorque < -M_PI) newTorque += M_2PI;
 			newTorque *= invTimeStep;
-			body->m_angularVelocity += newTorque - data->previousTorque; // not too bad to actually call "SetAngularVelocity", but better make body return "const float&"
-			data->previousTorque = adaptBack * newTorque;
+			body->m_angularVelocity -= data->previousTorque; // not too bad to actually call "SetAngularVelocity", but better make body return "const float&"
+			body->m_angularVelocity *= damping;
+			body->m_angularVelocity += (data->previousTorque = newTorque);
 		}
 	}
 }

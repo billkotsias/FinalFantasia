@@ -1,11 +1,14 @@
 ﻿#include "stdafx.h"
-#include "HelloWorldScene.h"
-#include "SimpleAudioEngine.h"
-#include "Paths.h"
-#include "GLES-Render.h"
 
+#include "HelloWorldScene.h"
+#include "Paths.h"
+#include "AppDesign.h"
+
+#include "GLES-Render.h"
 #include "psi/SkeletonBody.h"
 #include "psi/AnimatedPhysics.h"
+
+//#include "SimpleAudioEngine.h"
 
 USING_NS_CC;
 using namespace PsiEngine;
@@ -34,7 +37,14 @@ bool HelloWorld::init()
     {
         return false;
     }
-    
+
+	EventListenerMouse* _mouseListener = EventListenerMouse::create();
+	_mouseListener->onMouseMove = CC_CALLBACK_1(HelloWorld::onMouseMove, this);
+	_mouseListener->onMouseUp = CC_CALLBACK_1(HelloWorld::onMouseUp, this);
+	_mouseListener->onMouseDown = CC_CALLBACK_1(HelloWorld::onMouseDown, this);
+	_mouseListener->onMouseScroll = CC_CALLBACK_1(HelloWorld::onMouseScroll, this);
+	_eventDispatcher->addEventListenerWithSceneGraphPriority(_mouseListener, this);
+
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
@@ -101,12 +111,13 @@ bool HelloWorld::init()
 	/// <NOTE> : this depends on source Spine data, the bigger source, the lower we should scale to bring inside 0.1->10 Box2D size units
 	/// ideally, all characters in a game will have the same source scale and thus share the same number here
 	float renderToBodyScale = 0.01f;
+	float posY = 10;
 	for (int i = 0; i < 1; ++i)
 	{
 		bd = new psi::SkeletonBody(skeletonData, renderToBodyScale, skinName);
 		chara = bd->createInstance(&physicsWorld, 1.f, true);
 		chara->getRenderable()->setToSetupPose();
-		chara->getRenderable()->setPosition(700, 150);
+		chara->getRenderable()->setPosition(500, posY + 10);
 		chara->getRenderable()->setRotation(0);
 		addChild(chara->getRenderable());
 		//chara->getRenderable()->updateWorldTransform();
@@ -164,21 +175,19 @@ bool HelloWorld::init()
 	debugDraw->SetFlags(flags);
 	physicsWorld.SetDebugDraw(debugDraw);
 
-	//b2BodyDef myBodyDef;
-	//myBodyDef.type = b2_dynamicBody; //this will be a dynamic body
-	//myBodyDef.position.Set(250, 250); //set the starting position
-	//myBodyDef.angle = 0; //set the starting angle
-	//myBodyDef.userData = sprite;
-	//myBodyDef.gravityScale = 0;
-	//b2Body* dynamicBody = physicsWorld.CreateBody(&myBodyDef);
-	//b2PolygonShape boxShape;
-	//boxShape.SetAsBox(200, 200);
-	//b2FixtureDef boxFixtureDef;
-	//boxFixtureDef.shape = &boxShape;
-	//boxFixtureDef.density = 1;
-	//boxFixtureDef.restitution = 1;
-	//boxFixtureDef.friction = 1;
-	//dynamicBody->CreateFixture(&boxFixtureDef);
+	b2BodyDef myBodyDef;
+	myBodyDef.type = b2_staticBody;
+	myBodyDef.position.Set(AppDesign::resolutionSize.width / 2, posY); //set the starting position
+	myBodyDef.position *= renderToBodyScale;
+	myBodyDef.angle = 0; //set the starting angle
+	b2Body* dynamicBody = physicsWorld.CreateBody(&myBodyDef);
+	b2PolygonShape boxShape;
+	boxShape.SetAsBox(AppDesign::resolutionSize.width * renderToBodyScale, posY * renderToBodyScale);
+	b2FixtureDef boxFixtureDef;
+	boxFixtureDef.shape = &boxShape;
+	boxFixtureDef.restitution = 0.1f;
+	boxFixtureDef.friction = 1;
+	dynamicBody->CreateFixture(&boxFixtureDef);
 	return true;
 }
 
@@ -187,25 +196,27 @@ void HelloWorld::update(float deltaTime)
 	static float curTime = 0.f;
 	static float nextBall = 0.1f;
 
-	deltaTime = 1.f / 200;
+	deltaTime = 1.f / 100;
 	Node::update(deltaTime);
-	spSkeleton* testSkel = skeletonRenderInstance->getSkeleton();
-	spAnimation** anims = testSkel->data->animations;
-
 	spSkeleton* charaSkeleton = chara->getRenderable()->getSkeleton();
-	chara->getRenderable()->setOpacity(100);
+	spAnimation** anims = charaSkeleton->data->animations;
+
 	//chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+2);
 	//CCLOG("Skel rot %f=", chara->getRenderable()->getRotation());
 	/// <TODO> : below 2 lines of code go in an all-purpose function in AnimatedPhysics
 	/// <TODO> : we just need to restore bone->x,y values to bone->data->x,y, setToSetupPose is an <overkill>
-	spSkeleton_setBonesToSetupPose(charaSkeleton);
+	//spSkeleton_setBonesToSetupPose(charaSkeleton);
+	//chara->setBonesToSetupPose(); /// only needed if we <DON'T have joints>, cause joints prevent moving!!!
 	//spAnimation_apply(anims[0], charaSkeleton, 5, 5, true, NULL, NULL, 1.f, false, false);
-	spAnimation_apply(anims[0], chara->getRenderable()->getSkeleton(), curTime, curTime, true, NULL, NULL, 1.f, true, false);
-	chara->getRenderable()->updateWorldTransform();
-	if (curTime <= 0.f /*|| curTime > 10*/) {
-		chara->teleportBodiesToCurrentPose();
-	} else {
-		chara->impulseBodiesToCurrentPose(deltaTime);
+	if (playAnim) {
+		spAnimation_apply(anims[0], charaSkeleton, curTime, curTime, true, NULL, NULL, 1.f, true, false);
+		chara->getRenderable()->updateWorldTransform();
+		if (curTime <= 0.f /*|| curTime > 10*/) {
+			chara->teleportBodiesToCurrentPose();
+		}
+		else {
+			chara->impulseBodiesToCurrentPose(deltaTime);
+		}
 	}
 	physicsWorld.Step(deltaTime, 10, 4);
 	chara->matchPoseToBodies();
@@ -215,20 +226,22 @@ void HelloWorld::update(float deltaTime)
 	// use Animation 0 (walk)
 	///<setupPose> Controls mixing when alpha < 1. When true the value from the timeline is mixed with the value from the setup pose.When false the value from the timeline is mixed with the value from the current pose.Passing true when alpha is 1 is slightly more efficient for most timelines.
 	///<mixingOut> True when changing alpha over time toward 0 (the setup or current pose), false when changing alpha toward 1 (the timeline's pose). Used for timelines which perform instant transitions, such as DrawOrderTimeline or AttachmentTimeline.
+	spSkeleton* testSkel = skeletonRenderInstance->getSkeleton();
 	spSkeleton_setBonesToSetupPose(testSkel);
 	spAnimation_apply(anims[0], testSkel, /* only useful for events */ curTime - deltaTime / 1.f, curTime, true, NULL, NULL, 1.f, true, false);
 	//spSkeleton_findBone(testSkel, "head")->x += 100.f;
 	spSkeleton_updateWorldTransform(testSkel);
 
 	nextBall -= deltaTime;
-	if (nextBall <= 0 && curTime < 5) {
+	static b2Vec2 testBalls = b2Vec2(
+		(chara->getRenderable()->getPosition().x + 200) * chara->renderToBodyScale,
+		(chara->getRenderable()->getPosition().y + 150) * chara->renderToBodyScale
+	);
+	if (true && nextBall <= 0 && curTime < 5) {
 		nextBall += 0.3f;
 		b2BodyDef bdef;
 		bdef.type = b2_dynamicBody; //this will be a dynamic body
-		bdef.position.Set(
-			chara->getRenderable()->getPosition().x * chara->renderToBodyScale,
-			(chara->getRenderable()->getPosition().y + 500) * chara->renderToBodyScale
-		);
+		bdef.position = testBalls;
 		b2Body* body = physicsWorld.CreateBody(&bdef);
 		b2FixtureDef fix;
 		b2CircleShape sh;
@@ -238,6 +251,7 @@ void HelloWorld::update(float deltaTime)
 		fix.restitution = .3f;
 		body->SetBullet(false);
 		body->CreateFixture(&fix);
+		body->SetLinearVelocity(chara->renderToBodyScale * b2Vec2(-1000.f, 0.f));
 	}
 }
 
@@ -265,6 +279,34 @@ void HelloWorld::menuCloseCallback(Ref* pSender)
     
     //EventCustom customEndEvent("game_scene_close_event");
     //_eventDispatcher->dispatchEvent(&customEndEvent);
-    
-    
+}
+
+void HelloWorld::onMouseDown(Event *event)
+{
+	// to illustrate the event....
+	EventMouse* e = (EventMouse*)event;
+	playAnim = !playAnim;
+	CCLOG("Mouse Down detected, Key:%d, play:%d", e->getMouseButton(), playAnim);
+}
+
+void HelloWorld::onMouseUp(Event *event)
+{
+	// to illustrate the event....
+	EventMouse* e = (EventMouse*)event;
+	CCLOG("Mouse Up detected, Key:%d", e->getMouseButton());
+}
+
+void HelloWorld::onMouseMove(Event *event)
+{
+	// to illustrate the event....
+	EventMouse* e = (EventMouse*)event;
+	CCLOG("Mouse Position X:%f, Y:%f", e->getCursorX(), e->getCursorY());
+	chara->getRenderable()->setPosition(e->getCursorX(), e->getCursorY());
+}
+
+void HelloWorld::onMouseScroll(Event *event)
+{
+	// to illustrate the event....
+	EventMouse* e = (EventMouse*)event;
+	CCLOG("Mouse Scroll X:%f, Y:%f", e->getScrollX(), e->getScrollY());
 }

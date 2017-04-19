@@ -217,7 +217,7 @@ namespace psi {
 			b2BodyDef* bodyDef = &bodyDefinition->first;
 			bodyDef->userData = (void*)boneIndex; // register bone's index in skeleton
 			bodyDef->type = b2_dynamicBody; /// <TODO> : kinetic may be desirable in some cases
-			bodyDef->gravityScale = 0;
+			bodyDef->gravityScale = 1;
 			bodyDef->fixedRotation = false;
 			// this must be zero when impulsing, and with teleporting an easier-to-grasp value is user-defined, elsewhere (0 to 1)
 			bodyDef->angularDamping = 0.f;
@@ -273,9 +273,9 @@ namespace psi {
 				fixtureDef->shape = fixtureShape.get();
 				fixtureDef->filter.groupIndex = -1; /// <TODO> : same for all enemies, changes when one becomes physics-controlled
 				/// <TODO> : below should probably be user defined when creating SkeletonBody
-				fixtureDef->density = 1;
+				fixtureDef->density = 2.f;
 				fixtureDef->friction = 0.5f;
-				fixtureDef->restitution = .3f;
+				fixtureDef->restitution = 0.f;
 				//fixtureDef->filter.categoryBits = PHYSICS_FILTER_CATEGORY_ENEMY;
 				//fixtureDef->filter.maskBits = PHYSICS_FILTER_MASK_ENEMY;
 				defaultFixtureShapes.push_back(std::move(fixtureShape)); // register shape for deletion when SkeletonBody dies
@@ -321,6 +321,16 @@ namespace psi {
 			spBone* bone = skeletonInstance->bones[(int)body->GetUserData()];
 			animated->insertBody(body, bone);
 
+			// or maybe we DON'T want the skeleton root to rotate due to physics. Only move.
+			if (false && bone->data->name == string("root")) {
+				b2CircleShape* shape = new b2CircleShape();
+				defaultFixtureShapes.emplace_back(unique_ptr<b2Shape>(shape));
+				shape->m_radius = renderToBodyScale;
+				b2Filter noCollisions;
+				noCollisions.maskBits = 0;
+				body->CreateFixture(shape, 1)->SetFilterData(noCollisions);
+			}
+
 			for (b2FixtureDef& fixtureDef : bodyDefinition.second) {
 				CreateScaledFixture(body, fixtureDef, scale);
 			}
@@ -328,34 +338,37 @@ namespace psi {
 			if (createJoints) boneToBodyMap[bone] = body; // create joints?
 		}
 
-		// maybe below 3 lines are useless, but let's try them first
-		renderInstance->setToSetupPose();
-		//renderInstance->updateWorldTransform(); // needed?
-		animated->teleportBodiesToCurrentPose();
-		for (BoneToBodyMap::iterator it = boneToBodyMap.begin(); it != boneToBodyMap.end(); ++it)
+		if (createJoints)
 		{
-			spBone* bone = it->first;
-			//if (bone->data->name == string("right foot")) continue; // debug: remove
-			spBone* parentBone = bone->parent;
-			if (parentBone)
+			// maybe below 3 lines are useless, but let's try them first
+			renderInstance->setToSetupPose();
+			//renderInstance->updateWorldTransform(); // needed?
+			animated->teleportBodiesToCurrentPose();
+			for (BoneToBodyMap::iterator it = boneToBodyMap.begin(); it != boneToBodyMap.end(); ++it)
 			{
-				b2Body* body = it->second;
-				b2Body* parentBody = boneToBodyMap[parentBone];
+				spBone* bone = it->first;
+				//if (bone->data->name == string("right foot")) continue; // debug: remove
+				spBone* parentBone = bone->parent;
+				if (parentBone)
+				{
+					b2Body* body = it->second;
+					b2Body* parentBody = boneToBodyMap[parentBone];
 
-				b2RevoluteJointDef jointDef;
-				jointDef.bodyA = parentBody;
-				jointDef.localAnchorA = parentBody->GetLocalPoint( body->GetPosition() );
-				jointDef.bodyB = body;
-				jointDef.localAnchorB = b2Vec2_zero;
-				jointDef.collideConnected = false;
-				/// <TODO> : implement CONSTRAINTS <!>
-				jointDef.lowerAngle;
-				jointDef.upperAngle;
-				b2RevoluteJoint* joint = static_cast<b2RevoluteJoint*>(m_world->CreateJoint(&jointDef));
-				animated->insertJoint(joint);
+					b2RevoluteJointDef jointDef;
+					jointDef.bodyA = parentBody;
+					jointDef.localAnchorA = parentBody->GetLocalPoint(body->GetPosition());
+					jointDef.bodyB = body;
+					jointDef.localAnchorB = b2Vec2_zero;
+					jointDef.collideConnected = false;
+					/// <TODO> : implement CONSTRAINTS <!>
+					jointDef.upperAngle = MATH_DEG_TO_RAD(0);
+					jointDef.lowerAngle = -jointDef.upperAngle;
+					jointDef.enableLimit = false;
+					b2RevoluteJoint* joint = static_cast<b2RevoluteJoint*>(m_world->CreateJoint(&jointDef));
+					//animated->insertJoint(joint);
+				}
 			}
 		}
-
 		return animated;
 	}
 }

@@ -30,17 +30,19 @@ namespace psi {
 
 		void insertBody(b2Body* const &, spBone* const &);
 		void destroyBody(b2Body* const &);
-		void insertJoint(b2Joint* const &);
-		void destroyJoints();
+		void destroyJoints(); // if you want to completely disjoint a skeleton
 
 		// only issue on initialization
 		void teleportBodiesToCurrentPose();
 
 		// now we're talking
 		void getBoneScreenTransform(const spBone* const bone, const cocos2d::AffineTransform& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const;
+		void getBoneRelativeTransform(const spBone* const bone, const cocos2d::AffineTransform& renderTransform, const float& renderRotation, cocos2d::Vec3& outWorldPosition, float& outWorldRotation) const;
 
-		/// set animation frame;
+		void setBonesToSetupPose();
+		/// - set animation frame
 		void impulseBodiesToCurrentPose(float timeStep);
+		void impulseBodiesRelativelyToPoseChange(float timeStep);
 		/// - run physics
 		void matchPoseToBodies();
 		/// - render
@@ -52,9 +54,6 @@ namespace psi {
 
 		b2World* physicsWorld;
 		spine::SkeletonRenderer* renderInstance;
-		set<b2Body*> b2Bodies;
-		//map<spBone*, b2Body*>
-		set<b2Joint*> b2Joints;
-
+		deque<b2Body*> b2Bodies;
 	};
 }

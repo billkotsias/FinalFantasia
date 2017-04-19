@@ -12,7 +12,7 @@
 
 # Build results
 [Dd]ebug/
-proj.win32/Deubg.win32/
+[Dd]ebug.win32/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
@@ -69,6 +69,15 @@ artifacts/
 *.pidb
 *.svclog
 *.scc
+*.exe
+*.exp
+*.lib
+*.tlog
+*.idb
+*.vcxproj
+*.win32
+*.ipdb
+*.iobj
 
 # Chutzpah Test files
 _Chutzpah*

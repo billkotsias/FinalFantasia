@@ -30,7 +30,7 @@
 "slots": [
 	{ "name": "left shoulder", "bone": "left shoulder", "attachment": "left shoulder" },
 	{ "name": "left arm", "bone": "left arm", "attachment": "left arm" },
-	{ "name": "left hand item", "bone": "left hand", "attachment": "spear" },
+	{ "name": "left hand item", "bone": "left hand", "attachment": "dagger" },
 	{ "name": "left hand", "bone": "left hand", "attachment": "left hand" },
 	{ "name": "left foot", "bone": "left foot", "attachment": "left foot" },
 	{ "name": "left lower leg", "bone": "left lower leg", "attachment": "left lower leg" },
