@@ -82,11 +82,9 @@ bool HelloWorld::init()
 
     // add "HelloWorld" splash screen"
     auto sprite = Sprite::create(Paths::RES + "HelloWorld.png");
-	
-    // position the sprite on the center of the screen
-	//sprite->setPosition(Vec2(visibleSize.width / 2 + origin.x, visibleSize.height / 2 + origin.y));
 	sprite->setAnchorPoint(Vec2());
 	sprite->setPosition(Vec2());
+	sprite->setScale(0.25f);
 
     // add the sprite as a child to this layer
     this->addChild(sprite, 0);
@@ -107,7 +105,7 @@ bool HelloWorld::init()
 		CCLOG("OOPSA: %s\n", json->error);
 		//exit(0);
 	}
-	string skinName = "goblingirl";
+	string skinName = "goblin";
 	/// <NOTE> : this depends on source Spine data, the bigger source, the lower we should scale to bring inside 0.1->10 Box2D size units
 	/// ideally, all characters in a game will have the same source scale and thus share the same number here
 	float renderToBodyScale = 0.01f;
@@ -116,12 +114,11 @@ bool HelloWorld::init()
 	{
 		bd = new psi::SkeletonBody(skeletonData, renderToBodyScale, skinName);
 		chara = bd->createInstance(&physicsWorld, 1.f, true);
-		chara->getRenderable()->setToSetupPose();
-		chara->getRenderable()->setPosition(500, posY + 10);
-		chara->getRenderable()->setRotation(0);
+		chara->setAnimation(0);
+		chara->setPhysicsAnimationType(psi::AnimatedPhysics::PhysicsAnimationType::IMPULSE_RELATIVE);
 		addChild(chara->getRenderable());
-		//chara->getRenderable()->updateWorldTransform();
-		//chara->teleportBodiesToCurrentPose();
+		chara->teleportTo(500, posY + 50, 0);
+		chara->getRenderable()->setDebugBonesEnabled(true);
 
 		skeletonRenderInstance = spine::SkeletonRenderer::createWithData(skeletonData, false); // own=true => destroy the data when instance expires!
 		addChild(skeletonRenderInstance);
@@ -198,26 +195,9 @@ void HelloWorld::update(float deltaTime)
 
 	deltaTime = 1.f / 100;
 	Node::update(deltaTime);
-	spSkeleton* charaSkeleton = chara->getRenderable()->getSkeleton();
-	spAnimation** anims = charaSkeleton->data->animations;
 
-	//chara->getRenderable()->setRotation(chara->getRenderable()->getRotation()+2);
-	//CCLOG("Skel rot %f=", chara->getRenderable()->getRotation());
-	/// <TODO> : below 2 lines of code go in an all-purpose function in AnimatedPhysics
-	/// <TODO> : we just need to restore bone->x,y values to bone->data->x,y, setToSetupPose is an <overkill>
-	//spSkeleton_setBonesToSetupPose(charaSkeleton);
-	//chara->setBonesToSetupPose(); /// only needed if we <DON'T have joints>, cause joints prevent moving!!!
-	//spAnimation_apply(anims[0], charaSkeleton, 5, 5, true, NULL, NULL, 1.f, false, false);
-	if (playAnim) {
-		spAnimation_apply(anims[0], charaSkeleton, curTime, curTime, true, NULL, NULL, 1.f, true, false);
-		chara->getRenderable()->updateWorldTransform();
-		if (curTime <= 0.f /*|| curTime > 10*/) {
-			chara->teleportBodiesToCurrentPose();
-		}
-		else {
-			chara->impulseBodiesToCurrentPose(deltaTime);
-		}
-	}
+	chara->setTimeStep(deltaTime);
+	if (playAnim) chara->runAnimation();
 	physicsWorld.Step(deltaTime, 10, 4);
 	chara->matchPoseToBodies();
 
@@ -227,6 +207,7 @@ void HelloWorld::update(float deltaTime)
 	///<setupPose> Controls mixing when alpha < 1. When true the value from the timeline is mixed with the value from the setup pose.When false the value from the timeline is mixed with the value from the current pose.Passing true when alpha is 1 is slightly more efficient for most timelines.
 	///<mixingOut> True when changing alpha over time toward 0 (the setup or current pose), false when changing alpha toward 1 (the timeline's pose). Used for timelines which perform instant transitions, such as DrawOrderTimeline or AttachmentTimeline.
 	spSkeleton* testSkel = skeletonRenderInstance->getSkeleton();
+	spAnimation** anims = testSkel->data->animations;
 	spSkeleton_setBonesToSetupPose(testSkel);
 	spAnimation_apply(anims[0], testSkel, /* only useful for events */ curTime - deltaTime / 1.f, curTime, true, NULL, NULL, 1.f, true, false);
 	//spSkeleton_findBone(testSkel, "head")->x += 100.f;
@@ -237,7 +218,7 @@ void HelloWorld::update(float deltaTime)
 		(chara->getRenderable()->getPosition().x + 200) * chara->renderToBodyScale,
 		(chara->getRenderable()->getPosition().y + 150) * chara->renderToBodyScale
 	);
-	if (true && nextBall <= 0 && curTime < 5) {
+	if (false && nextBall <= 0 && curTime < 5) {
 		nextBall += 0.3f;
 		b2BodyDef bdef;
 		bdef.type = b2_dynamicBody; //this will be a dynamic body

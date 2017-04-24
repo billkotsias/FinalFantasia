@@ -4,6 +4,7 @@
 #include "deque"
 #include "utility"
 #include "Box2D\Box2D.h"
+#include "polypartition.h"
 
 struct spSkeletonData;
 struct spAttachment;
@@ -41,7 +42,7 @@ namespace psi {
 		static inline b2Vec2 GetWorldScale(spBone*);
 
 		// copy array of floats (x,y pairs) to b2Vec2 array
-		static inline void CopyVerticesTob2Vec2Array(std::vector<b2Vec2>& destination, const float* const vertices, const unsigned int floatsCount, const b2Vec2& scale) {
+		static inline void CopyVerticesTob2Vec2Array(TPPLPoly& destination, const float* const vertices, const unsigned int floatsCount, const b2Vec2& scale) {
 			destination.reserve(floatsCount);
 			/// <NOTE> : minus y
 			for (unsigned int j = 0; j < floatsCount; ) destination.emplace_back(b2Vec2(vertices[j++] * scale.x, -vertices[j++] * scale.y));

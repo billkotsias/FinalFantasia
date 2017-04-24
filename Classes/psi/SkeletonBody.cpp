@@ -37,20 +37,23 @@ namespace psi {
 
 	void SkeletonBody::GetAttachmentVertices(std::vector<std::vector<b2Vec2>>& arrayOfVertices, const spAttachment* const _attachment, spSlot* const slot, const float& _scale)
 	{
-		std::vector<b2Vec2> b2Vecs; // x,y pairs
+		//std::vector<b2Vec2> b2Vecs; // x,y pairs
+		TPPLPoly hull;
 		spBone* const parentBone = slot->bone;
 		b2Vec2 scale = GetWorldScale(parentBone);
 		scale *= _scale;
+		bool checkConvex = false;
 
 		/// <NOTE> : bone scaling is "burned-in" cause we can only take it into account at b2Body-creation time
-		auto parseVertexAttachment = [&](spVertexAttachment& vAttachment)
+		auto parseVertexAttachment = [&](spVertexAttachment& vAttachment, unsigned int verticesCount /*hull-only*/)
 		{
-			unsigned int verticesCount = vAttachment.verticesCount;	/// number of actual vertices * 2! (x,y pairs)
+			checkConvex = true;
 			if (!vAttachment.bonesCount) {
 				float* sourceVerticesPtr = vAttachment.vertices;
-				CopyVerticesTob2Vec2Array(b2Vecs, sourceVerticesPtr, verticesCount, scale); // no bone influences, copy vertices directly
+				CopyVerticesTob2Vec2Array(hull, sourceVerticesPtr, verticesCount, scale); // no bone influences, copy vertices directly
 			}
 			else {
+				CCLOG("DEFORMING-APPROXIMATION ?!!!!!");
 				/// <NOTE> : experimental stuff, Box2D bodies aren't allowed to deform
 				/// instead, we just make an approximation based on original world coords and parent bone transformation
 				auto output = make_unique<float[]>(verticesCount);
@@ -60,23 +63,13 @@ namespace psi {
 					spBone_worldToLocal(parentBone, output[i], output[i + 1], &output[i], &output[i + 1]);
 				}
 				CopyVerticesTob2Vec2Array(b2Vecs, output.get(), verticesCount, scale);
-				// old : for this to work, we should already be able to calculate world coords of bones
-				//unsigned int j = 0, k = 0, v = 0;
-				//while (j < verticesCount) {
-				//	CCLOG("--- Weighted Vertex %i ---", j);
-				//	unsigned int vertexBones, vertexBones2;
-				//	vertexBones = vertexBones2 = vAttachment.bones[k];
-				//	while (vertexBones2--) { CCLOG("bone index:%i", vAttachment.bones[++k]); }
-				//	while (vertexBones--) { CCLOG("x,y (rel):%f,%f / w:%f", sourceVerticesPtr[v++], sourceVerticesPtr[v++], sourceVerticesPtr[v++]); }
-				//	j += 2;
-				//}
 			}
 		};
 
 		auto parseRegionAttachment = [&](const spRegionAttachment& rAttachment)
 		{
 			const float* sourceVerticesPtr = rAttachment.offset; // local coords, don't take into account parent bones' transforms
-			CopyVerticesTob2Vec2Array(b2Vecs, sourceVerticesPtr, 8, scale); // no bone influences, copy vertices directly
+			CopyVerticesTob2Vec2Array(hull, sourceVerticesPtr, 8, scale); // no bone influences, copy vertices directly
 		};
 
 		switch (_attachment->type)
@@ -87,14 +80,20 @@ namespace psi {
 				break;
 
 			case SP_ATTACHMENT_BOUNDING_BOX:
-				parseVertexAttachment(((spBoundingBoxAttachment*)_attachment)->super);
+			{
+				spVertexAttachment vertexAttachment = ((spBoundingBoxAttachment*)_attachment)->super;
+				parseVertexAttachment(vertexAttachment, vertexAttachment.verticesCount);
 				CCLOG("BOUNDS vertices:%i", b2Vecs.size());
 				break;
+			}
 
 			case SP_ATTACHMENT_MESH:
-				parseVertexAttachment(((spMeshAttachment*)_attachment)->super);
+			{
+				spMeshAttachment* meshAttachment = (spMeshAttachment*)_attachment;
+				parseVertexAttachment(meshAttachment->super, meshAttachment->hullLength);
 				CCLOG("MESH vertices:%i", b2Vecs.size());
 				break;
+			}
 
 				/// <TODO> : Implement something!
 				//case SP_ATTACHMENT_CIRCLE:
@@ -105,15 +104,48 @@ namespace psi {
 		}
 		if (b2Vecs.empty()) return;
 
+		// make sure hull is convex
+		if (checkConvex) {
+
+		}
+		else {
+
+		}
+
 		if (b2Vecs.size() > 8)
 		{
 			/// <TODO> : box 2d doesn't like tons of vertices - so use <PolyPartition> library for this
-			b2Vecs.resize(8);
-			arrayOfVertices.push_back(b2Vecs);
+			TPPLPoly poly;
+			poly.Init(b2Vecs.size());
+			for (int i = 0; i < poly.GetNumPoints(); ++i)
+			{
+				TPPLPoint& point = poly.GetPoint(i);
+				b2Vec2& vec = b2Vecs[i];
+				point.x = vec.x; // I am tired of copying the SAME 2D point over and over again
+				point.y = vec.y;
+			}
+			list<TPPLPoly> polyList;
+			TPPLPartition::ConvexPartition_HM(&poly, &polyList);
+			CCLOG("\nARGHHHHHHH:%d\n", polyList.size());
+			for (TPPLPoly poly : polyList) {
+				list<TPPLPoly> polyList;
+				TPPLPartition::Triangulate_EC(&poly, &polyList);
+				CCLOG("\nFUCK THIS:%d,%d\n", b2Vecs.size(), polyList.size());
+				for (TPPLPoly triangle : polyList) {
+					b2Vecs.clear();
+					CCLOG("points = %d", triangle.GetNumPoints());
+					for (int i = 0; i < triangle.GetNumPoints(); ++i) {
+						b2Vecs.push_back(b2Vec2(triangle[i].x, triangle[i].y));
+					}
+					arrayOfVertices.push_back(b2Vecs);
+				}
+			}
+			//b2Vecs.resize(8);
+			//arrayOfVertices.push_back(b2Vecs);
 		}
 		else
 		{
-			arrayOfVertices.push_back(b2Vecs);
+			//arrayOfVertices.push_back(b2Vecs);
 		}
 	}
 
@@ -217,7 +249,7 @@ namespace psi {
 			b2BodyDef* bodyDef = &bodyDefinition->first;
 			bodyDef->userData = (void*)boneIndex; // register bone's index in skeleton
 			bodyDef->type = b2_dynamicBody; /// <TODO> : kinetic may be desirable in some cases
-			bodyDef->gravityScale = 1;
+			bodyDef->gravityScale = 1; /// <TODO> : gravityScale must be zero when absolute-impulsing disjointed models!
 			bodyDef->fixedRotation = false;
 			// this must be zero when impulsing, and with teleporting an easier-to-grasp value is user-defined, elsewhere (0 to 1)
 			bodyDef->angularDamping = 0.f;
@@ -313,7 +345,7 @@ namespace psi {
 		/// <TODO> : further change scale below to match GLES-RENDERER scale, in case a character has different scale to <common> renderToBodyScale<!>
 		renderInstance->setScale(scale);
 		auto skeletonInstance = renderInstance->getSkeleton();
-		AnimatedPhysics* animated = new AnimatedPhysics(renderInstance, m_world, renderToBodyScale);
+		AnimatedPhysics* animated = new AnimatedPhysics(renderInstance, m_world, renderToBodyScale, createJoints);
 
 		for (BodyDefinition& bodyDefinition : bodyDefinitions)
 		{
