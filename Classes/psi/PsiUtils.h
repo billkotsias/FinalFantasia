@@ -16,4 +16,12 @@ namespace psi {
 		//return angle;
 		return boundAngleTo(angle, (float)M_PI);
 	}
+
+	template<class COUT, class CIN>
+	COUT copy2D(const CIN& in) {
+		COUT out;
+		out.x = in.x;
+		out.y = in.y;
+		return out;
+	};
 }

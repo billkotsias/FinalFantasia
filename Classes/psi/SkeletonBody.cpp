@@ -1,9 +1,11 @@
 #include "stdafx.h"
 #include "SkeletonBody.h"
 #include "AnimatedPhysics.h"
-#include "list"
 
 #include "spineCocos\spine\spine-cocos2dx.h"
+#include "PSIUtils.h"
+#include "polypartition.h"
+#include "list"
 
 using namespace std;
 
@@ -37,7 +39,7 @@ namespace psi {
 
 	void SkeletonBody::GetAttachmentVertices(std::vector<std::vector<b2Vec2>>& arrayOfVertices, const spAttachment* const _attachment, spSlot* const slot, const float& _scale)
 	{
-		//std::vector<b2Vec2> b2Vecs; // x,y pairs
+		//vector<b2Vec2> b2Vecs;
 		TPPLPoly hull;
 		spBone* const parentBone = slot->bone;
 		b2Vec2 scale = GetWorldScale(parentBone);
@@ -45,30 +47,35 @@ namespace psi {
 		bool checkConvex = false;
 
 		/// <NOTE> : bone scaling is "burned-in" cause we can only take it into account at b2Body-creation time
-		auto parseVertexAttachment = [&](spVertexAttachment& vAttachment, unsigned int verticesCount /*hull-only*/)
+		auto parseVertexAttachment = [&](spVertexAttachment& vAttachment, unsigned int floatsCount /*hull-only*/)
 		{
+			//return; /// <DEBUG>
+			if (!floatsCount) return;
 			checkConvex = true;
 			if (!vAttachment.bonesCount) {
 				float* sourceVerticesPtr = vAttachment.vertices;
-				CopyVerticesTob2Vec2Array(hull, sourceVerticesPtr, verticesCount, scale); // no bone influences, copy vertices directly
+				//CopyVerticesTob2Vec2Array(b2Vecs, sourceVerticesPtr, floatsCount, scale); // no bone influences, copy vertices directly
+				CopyVerticesTob2Vec2Array(hull, sourceVerticesPtr, floatsCount, scale); // no bone influences, copy vertices directly
 			}
 			else {
 				CCLOG("DEFORMING-APPROXIMATION ?!!!!!");
 				/// <NOTE> : experimental stuff, Box2D bodies aren't allowed to deform
 				/// instead, we just make an approximation based on original world coords and parent bone transformation
-				auto output = make_unique<float[]>(verticesCount);
-				spVertexAttachment_computeWorldVertices(&vAttachment, slot, 0, verticesCount, output.get(), 0, 2);
+				auto output = make_unique<float[]>(floatsCount);
+				spVertexAttachment_computeWorldVertices(&vAttachment, slot, 0, floatsCount, output.get(), 0, 2);
 				/// <TODO> : check if we must truly remove parent bone's transformation ?!
-				for (unsigned int i = 0; i < verticesCount; i += 2) {
+				for (unsigned int i = 0; i < floatsCount; i += 2) {
 					spBone_worldToLocal(parentBone, output[i], output[i + 1], &output[i], &output[i + 1]);
 				}
-				CopyVerticesTob2Vec2Array(b2Vecs, output.get(), verticesCount, scale);
+				//CopyVerticesTob2Vec2Array(b2Vecs, output.get(), floatsCount, scale);
+				CopyVerticesTob2Vec2Array(hull, output.get(), floatsCount, scale);
 			}
 		};
 
 		auto parseRegionAttachment = [&](const spRegionAttachment& rAttachment)
 		{
 			const float* sourceVerticesPtr = rAttachment.offset; // local coords, don't take into account parent bones' transforms
+			//CopyVerticesTob2Vec2Array(b2Vecs, sourceVerticesPtr, 8, scale); // no bone influences, copy vertices directly
 			CopyVerticesTob2Vec2Array(hull, sourceVerticesPtr, 8, scale); // no bone influences, copy vertices directly
 		};
 
@@ -76,22 +83,22 @@ namespace psi {
 		{
 			case SP_ATTACHMENT_REGION:
 				parseRegionAttachment(*(spRegionAttachment*)_attachment);
-				CCLOG("REGION vertices:%i", b2Vecs.size());
+				CCLOG("\nREGION vertices:%i", hull.GetNumPoints());
 				break;
 
 			case SP_ATTACHMENT_BOUNDING_BOX:
 			{
 				spVertexAttachment vertexAttachment = ((spBoundingBoxAttachment*)_attachment)->super;
 				parseVertexAttachment(vertexAttachment, vertexAttachment.verticesCount);
-				CCLOG("BOUNDS vertices:%i", b2Vecs.size());
+				CCLOG("\nBOUNDS vertices:%i", hull.GetNumPoints());
 				break;
 			}
 
 			case SP_ATTACHMENT_MESH:
 			{
 				spMeshAttachment* meshAttachment = (spMeshAttachment*)_attachment;
-				parseVertexAttachment(meshAttachment->super, meshAttachment->hullLength);
-				CCLOG("MESH vertices:%i", b2Vecs.size());
+				parseVertexAttachment(meshAttachment->super, meshAttachment->hullLength * 2);
+				CCLOG("\nMESH vertices:%i HULL:%i", meshAttachment->super.verticesCount/2, meshAttachment->hullLength);
 				break;
 			}
 
@@ -102,51 +109,52 @@ namespace psi {
 			default:
 				return; // empty handed
 		}
-		if (b2Vecs.empty()) return;
+		//if (!b2Vecs.size()) return;
+		if (!hull.GetNumPoints()) return;
 
 		// make sure hull is convex
+		list<TPPLPoly> polys;
 		if (checkConvex) {
-
+			hull.SetOrientation(TPPL_CCW);
+			CCLOG("CONVEX SUCCESS = %d %d", polys.size(), TPPLPartition::ConvexPartition_OPT(&hull, &polys));
+			if (polys.empty()) polys.push_back(hull);
 		}
 		else {
-
+			polys.push_back(hull);
 		}
 
-		if (b2Vecs.size() > 8)
+		// make sure every poly has limited vertices
+		for (list<TPPLPoly>::iterator it = polys.begin(); it != polys.end(); ++it)
 		{
-			/// <TODO> : box 2d doesn't like tons of vertices - so use <PolyPartition> library for this
-			TPPLPoly poly;
-			poly.Init(b2Vecs.size());
-			for (int i = 0; i < poly.GetNumPoints(); ++i)
+			TPPLPoly& poly = *it;
+			CCLOG("NUMBER OF VERTICES:%d", poly.GetNumPoints());
+			if (poly.GetNumPoints() > b2_maxPolygonVertices) {
+				CCLOG("T R I = %d", TPPLPartition::Triangulate_OPT(&poly, &polys));
+			}
+			else
 			{
-				TPPLPoint& point = poly.GetPoint(i);
-				b2Vec2& vec = b2Vecs[i];
-				point.x = vec.x; // I am tired of copying the SAME 2D point over and over again
-				point.y = vec.y;
+				int numPoints = (int)poly.GetNumPoints();
+				vector<b2Vec2> b2Vecs2;
+				b2Vecs2.reserve((size_t)numPoints);
+				for (int i = 0; i < numPoints; ++i) b2Vecs2.push_back(psi::copy2D<b2Vec2, TPPLPoint>(poly[i]));
+				arrayOfVertices.push_back(b2Vecs2);
 			}
-			list<TPPLPoly> polyList;
-			TPPLPartition::ConvexPartition_HM(&poly, &polyList);
-			CCLOG("\nARGHHHHHHH:%d\n", polyList.size());
-			for (TPPLPoly poly : polyList) {
-				list<TPPLPoly> polyList;
-				TPPLPartition::Triangulate_EC(&poly, &polyList);
-				CCLOG("\nFUCK THIS:%d,%d\n", b2Vecs.size(), polyList.size());
-				for (TPPLPoly triangle : polyList) {
-					b2Vecs.clear();
-					CCLOG("points = %d", triangle.GetNumPoints());
-					for (int i = 0; i < triangle.GetNumPoints(); ++i) {
-						b2Vecs.push_back(b2Vec2(triangle[i].x, triangle[i].y));
-					}
-					arrayOfVertices.push_back(b2Vecs);
-				}
-			}
-			//b2Vecs.resize(8);
-			//arrayOfVertices.push_back(b2Vecs);
 		}
-		else
-		{
-			//arrayOfVertices.push_back(b2Vecs);
-		}
+		//if (b2Vecs.size() > 8) {
+		//	b2Vecs.resize(8);
+		//	arrayOfVertices.push_back(b2Vecs);
+		//}
+		//else {
+		//	int numPoints = (int)hull.GetNumPoints();
+		//	vector<b2Vec2> b2Vecs2;
+		//	b2Vecs2.reserve((size_t)numPoints);
+		//	for (int i = 0; i < numPoints; ++i) {
+		//		//CCLOG("b=%f,%f t=%f,%f", b2Vecs[i].x, b2Vecs[i].y, hull[i].x, hull[i].y);
+		//	}
+		//	for (int i = 0; i < numPoints; ++i) b2Vecs2.push_back(psi::copy2D<b2Vec2, TPPLPoint>(hull[i]));
+		//	arrayOfVertices.push_back(b2Vecs2);
+		//	//arrayOfVertices.push_back(b2Vecs);
+		//}
 	}
 
 	void SkeletonBody::CreateScaledFixture(b2Body* body, b2FixtureDef& fixtureDef, float scale)
@@ -284,7 +292,9 @@ namespace psi {
 			{
 				vector<b2Vec2>& vertices = b2Vecs[fixtureCount];
 				unique_ptr<b2Shape> fixtureShape;
-				if (vertices.size() == 2) {
+				if (vertices.size() == 2)
+				{
+					// circle shape
 					fixtureShape = unique_ptr<b2Shape>(new b2CircleShape());
 					b2CircleShape* circleShape = static_cast<b2CircleShape*>(fixtureShape.get());
 					circleShape->m_p = vertices[0];
@@ -292,6 +302,7 @@ namespace psi {
 					//circleShape->m_radius = vertices[1].x; // perhaps
 				}
 				else {
+					// polygon shape
 					fixtureShape = unique_ptr<b2Shape>(new b2PolygonShape());
 					b2PolygonShape* polygonShape = static_cast<b2PolygonShape*>(fixtureShape.get());
 					polygonShape->Set(vertices._Get_data()._Myfirst /* copied over */, vertices.size());
@@ -300,7 +311,7 @@ namespace psi {
 				/// prior to creating final body fixtures, fixture defs' shapes will be <re-scaled to Skeleton Instance's actual scale (if != 1)!!!>
 				/// note that we'll have to use the final <bone> scale!
 
-				bodyDefFixtures->emplace_back(b2FixtureDef());
+				bodyDefFixtures->emplace_back(/*b2FixtureDef()*/);
 				b2FixtureDef* fixtureDef = &bodyDefFixtures->back();
 				fixtureDef->shape = fixtureShape.get();
 				fixtureDef->filter.groupIndex = -1; /// <TODO> : same for all enemies, changes when one becomes physics-controlled
@@ -356,7 +367,7 @@ namespace psi {
 			// or maybe we DON'T want the skeleton root to rotate due to physics. Only move.
 			if (false && bone->data->name == string("root")) {
 				b2CircleShape* shape = new b2CircleShape();
-				defaultFixtureShapes.emplace_back(unique_ptr<b2Shape>(shape));
+				defaultFixtureShapes.emplace_back(shape/*unique_ptr<b2Shape>(shape)*/);
 				shape->m_radius = renderToBodyScale;
 				b2Filter noCollisions;
 				noCollisions.maskBits = 0;

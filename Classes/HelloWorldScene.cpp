@@ -193,7 +193,7 @@ void HelloWorld::update(float deltaTime)
 	static float curTime = 0.f;
 	static float nextBall = 0.1f;
 
-	deltaTime = 1.f / 100;
+	deltaTime = 1.f / 60;
 	Node::update(deltaTime);
 
 	chara->setTimeStep(deltaTime);
@@ -281,7 +281,7 @@ void HelloWorld::onMouseMove(Event *event)
 {
 	// to illustrate the event....
 	EventMouse* e = (EventMouse*)event;
-	CCLOG("Mouse Position X:%f, Y:%f", e->getCursorX(), e->getCursorY());
+	//CCLOG("Mouse Position X:%f, Y:%f", e->getCursorX(), e->getCursorY());
 	chara->getRenderable()->setPosition(e->getCursorX(), e->getCursorY());
 }
 
